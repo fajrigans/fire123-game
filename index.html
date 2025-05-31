@@ -389,12 +389,82 @@
             background-color: #0cc;
             box-shadow: 0 0 15px #0cc;
         }
+
+        /* Weapon Selection Screen Styles */
+        #weaponList {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            max-width: 900px;
+            width: 90%;
+            margin-top: 2rem;
+            justify-content: center;
+        }
+        #weaponList > div {
+            background-color: #2d3748;
+            border-radius: 12px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        #weaponList > div:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 0 25px rgba(0, 255, 255, 0.5);
+        }
+        #weaponList h2 {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #0ff;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 0 10px #0ff;
+        }
+        #weaponList p {
+            font-size: 1.2rem;
+            color: #e2e8f0;
+            margin-bottom: 1rem;
+        }
+        #weaponList button {
+            padding: 0.75rem 1.5rem;
+            font-size: 1.1rem;
+            border-radius: 8px;
+            font-weight: bold;
+            transition: background-color 0.3s, transform 0.2s;
+            margin-top: 1rem;
+        }
+        #weaponList button.bg-green-600 {
+            background-color: #10B981; /* Tailwind green-500 */
+            color: #fff;
+        }
+        #weaponList button.bg-blue-600 {
+            background-color: #3B82F6; /* Tailwind blue-500 */
+            color: #fff;
+        }
+        #weaponList button.bg-gray-500 {
+            background-color: #6B7280; /* Tailwind gray-500 */
+            color: #cbd5e0;
+        }
+
+        /* Weapon Preview Container */
+        #weaponPreviewContainer {
+            position: relative;
+            cursor: grab; /* Indicate draggable */
+        }
+        #weaponPreviewCanvas {
+            background-color: rgba(0,0,0,0.3); /* Semi-transparent background for canvas */
+        }
+        #weaponPreviewHint {
+            pointer-events: none; /* Allow events to pass through to canvas */
+        }
     </style>
 </head>
 <body>
     <div class="game-container">
         <div class="game-info">
-            <div id="score">Skor: 0</div>
+            <div id="coins">Koin: 0</div>
             </div>
         <button id="menuToggleButton" class="absolute top-4 right-4 z-50 p-3 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors">
             <i class="fas fa-bars text-xl"></i>
@@ -430,16 +500,22 @@
     </div>
 
     <div id="mainMenuScreen" class="menu-screen">
-        <h1>fire123-game</h1>
-        <p id="welcomeMessageText" class="text-xl text-center mb-4 px-4"></p> <button id="startGameButton">Mulai Game</button>
-        <button id="characterSelectButton">Pilih Karakter</button>
+        <h1 id="mainMenuTitle">fire123-game</h1>
+        <p id="welcomeMessageText" class="text-xl text-center mb-4 px-4"></p>
+        <button id="mainMenuPrimaryButton">Mulai Game</button> 
+        <button id="restartGameButton" style="display: none;">Mulai Ulang</button> 
+        <button id="weaponSelectButton">Pilih Senjata</button> 
         <button id="settingsButton">Pengaturan</button>
     </div>
 
-    <div id="characterSelectScreen" class="menu-screen" style="display: none;">
-        <h1>Pilih Karakter</h1>
-        <p>Fitur ini akan segera hadir!</p>
-        <button id="backToMainMenuFromCharacter">Kembali ke Menu Utama</button>
+    <div id="weaponSelectScreen" class="menu-screen" style="display: none;">
+        <h1 id="weaponSelectTitle">Pilih Senjata</h1>
+        <div id="weaponPreviewContainer" class="w-full max-w-sm h-64 bg-gray-900 rounded-lg shadow-inner flex items-center justify-center relative my-4">
+            <canvas id="weaponPreviewCanvas" class="w-full h-full rounded-lg"></canvas>
+            <p id="weaponPreviewHint" class="absolute text-gray-400 text-sm" style="display: none;"></p> </div>
+        <div id="weaponList">
+            </div>
+        <button id="backToMainMenuFromWeapon">Kembali ke Menu Utama</button>
     </div>
 
     <div id="settingsScreen" class="menu-screen" style="display: none;">
@@ -467,23 +543,29 @@
 
     <script>
         // Get info elements
-        const scoreDisplay = document.getElementById('score');
+        const coinsDisplay = document.getElementById('coins'); // Changed from score
 
         // Get message box elements
         const messageBox = document.getElementById('messageBox');
         const messageText = document.getElementById('messageText');
-        const restartButton = document.getElementById('restartButton');
+        const restartButton = document.getElementById('restartButton'); // This is for Game Over screen
 
         // Get main menu elements
         const mainMenuScreen = document.getElementById('mainMenuScreen');
-        const welcomeMessageText = document.getElementById('welcomeMessageText'); // New element for welcome message
-        const startGameButton = document.getElementById('startGameButton');
-        const characterSelectButton = document.getElementById('characterSelectButton');
+        const mainMenuTitle = document.getElementById('mainMenuTitle');
+        const welcomeMessageText = document.getElementById('welcomeMessageText');
+        const mainMenuPrimaryButton = document.getElementById('mainMenuPrimaryButton');
+        const restartGameButton = document.getElementById('restartGameButton'); // This is for pause menu restart
+        const weaponSelectButton = document.getElementById('weaponSelectButton'); // Renamed
         const settingsButton = document.getElementById('settingsButton');
 
-        // Get character select elements
-        const characterSelectScreen = document.getElementById('characterSelectScreen');
-        const backToMainMenuFromCharacterButton = document.getElementById('backToMainMenuFromCharacter');
+        // Get weapon select elements
+        const weaponSelectScreen = document.getElementById('weaponSelectScreen');
+        const weaponSelectTitle = document.getElementById('weaponSelectTitle');
+        const weaponList = document.getElementById('weaponList');
+        const backToMainMenuFromWeaponButton = document.getElementById('backToMainMenuFromWeapon');
+        const weaponPreviewCanvas = document.getElementById('weaponPreviewCanvas'); // New
+        const weaponPreviewHint = document.getElementById('weaponPreviewHint'); // New
 
         // Get settings elements
         const settingsScreen = document.getElementById('settingsScreen');
@@ -523,7 +605,7 @@
         let playerModel; // Variable to hold the player model (FBX)
 
         // Game variables
-        let score = 0;
+        let coins = 0; // Changed from score
         let playerHealth = 100;
         let playerMaxHealth = 100;
         let playerShield = 50;
@@ -532,7 +614,7 @@
         // 'menu': main menu, can be initial or pause state
         // 'playing': game is active
         // 'gameOver': game has ended
-        // 'characterSelect': character selection screen
+        // 'weaponSelect': weapon selection screen
         // 'settings': settings screen
         let gameState = 'menu'; 
         let gameStartedAtLeastOnce = false; // Flag to track if game has been started from main menu
@@ -554,8 +636,8 @@
         const BULLET_HEIGHT = 0.8;
         const BULLET_SPEED = 15; // Speed units per second (will be multiplied by deltaTime)
         const BULLET_COLOR = 0xFF00FF; // Magenta
-        const BULLET_DAMAGE = 10;
-        const ZOOMED_BULLET_DAMAGE = 25;
+        let BULLET_DAMAGE = 10; // This will change based on selected weapon
+        const ZOOMED_BULLET_DAMAGE_MULTIPLIER = 2.5; // Zoomed damage is this much more than base weapon damage
 
         // Pre-rotated bullet geometry (length along Z-axis)
         const BULLET_GEOMETRY = new THREE.CylinderGeometry(BULLET_WIDTH, BULLET_WIDTH, BULLET_HEIGHT, 8).rotateX(Math.PI / 2);
@@ -646,52 +728,87 @@
         let masterVolume = 0.5; // Default volume (0.0 to 1.0)
         let currentLanguage = 'id'; // 'id' for Indonesian, 'en' for English
 
+        // Weapon data
+        const weapons = [
+            { id: 'ar15', name: 'AR-15 Style Rifle', damage: 20, price: 0, current: true, modelPath: 'https://raw.githubusercontent.com/fajrigans/assetgametembak/main/ImageToStl.com_buatkan_senjata_temba_0531124219_texture_fbx.fbx' },
+            { id: 'pistol', name: 'Pistol', damage: 15, price: 1500, current: false, modelPath: 'https://raw.githubusercontent.com/fajrigans/assetgametembak/main/ImageToStl.com_buatkan_senjata_temba_0531174819_texture_fbx.fbx' }
+        ];
+        let currentWeapon = weapons[0]; // Default weapon is AR-15
+
         const translations = {
             'id': {
                 'gameTitle': 'fire123-game',
                 'startGame': 'Mulai Game',
-                'characterSelect': 'Pilih Karakter',
+                'continueGame': 'Lanjutkan', // New
+                'restartGame': 'Mulai Ulang', // New
+                'selectWeapon': 'Pilih Senjata', // Changed from characterSelect
                 'settings': 'Pengaturan',
                 'backToMainMenu': 'Kembali ke Menu Utama',
-                'charSelectTitle': 'Pilih Karakter',
-                'charSelectPlaceholder': 'Fitur ini akan segera hadir!',
+                'weaponSelectTitle': 'Pilih Senjata',
+                'weaponDamage': 'Kerusakan:', // New
+                'buyButton': 'Beli', // New
+                'currentWeapon': 'Terpilih', // New
                 'settingsTitle': 'Pengaturan',
                 'settingsPlaceholder': 'Atur opsi game di sini.',
                 'mouseSensitivityLabel': 'Sensitivitas Mouse:',
                 'volumeLabel': 'Volume:',
                 'languageLabel': 'Bahasa:',
-                'score': 'Skor:',
+                'coins': 'Koin:', // Changed from score
                 'health': 'Kesehatan:',
                 'shield': 'Perisai:',
                 'gameOverMessage': 'GAME OVER! Musuh menabrak Anda.',
-                'restartButton': 'Mulai Ulang',
-                'welcomeMessage': "Selamat datang! Klik 'Mulai Game' untuk memulai permainan. Gunakan ESC atau tombol menu untuk membuka/menutup menu. Klik di dalam area game untuk mengaktifkan kontrol kamera.",
+                'restartButton': 'Mulai Ulang', // For game over screen
+                'welcomeMessage': "Selamat datang! Gunakan ESC atau tombol menu untuk membuka/menutup menu. Klik di dalam area game untuk mengaktifkan kontrol kamera.",
                 'shootButton': 'Tembak',
-                'gamePaused': 'Game Dijeda.'
+                'gamePaused': 'Game Dijeda.',
+                'weaponPreviewNoModel': 'Model senjata tidak tersedia.', // New
+                'weaponNames': { // New nested object for weapon names
+                    'ar15': 'Senapan Gaya AR-15',
+                    'pistol': 'Pistol'
+                }
             },
             'en': {
                 'gameTitle': 'fire123-game',
                 'startGame': 'Start Game',
-                'characterSelect': 'Select Character',
+                'continueGame': 'Continue', // New
+                'restartGame': 'Restart', // New
+                'selectWeapon': 'Select Weapon', // Changed from characterSelect
                 'settings': 'Settings',
                 'backToMainMenu': 'Back to Main Menu',
-                'charSelectTitle': 'Select Character',
-                'charSelectPlaceholder': 'This feature is coming soon!',
+                'weaponSelectTitle': 'Select Weapon',
+                'weaponDamage': 'Damage:', // New
+                'buyButton': 'Buy', // New
+                'currentWeapon': 'Equipped', // New
                 'settingsTitle': 'Settings',
                 'settingsPlaceholder': 'Adjust game options here.',
                 'mouseSensitivityLabel': 'Mouse Sensitivity:',
                 'volumeLabel': 'Volume:',
                 'languageLabel': 'Language:',
-                'score': 'Score:',
+                'coins': 'Coins:', // Changed from score
                 'health': 'Health:',
                 'shield': 'Shield:',
                 'gameOverMessage': 'GAME OVER! Enemy collided with you.',
-                'restartButton': 'Restart',
-                'welcomeMessage': "Welcome! Click 'Start Game' to begin. Use ESC or the menu button to open/close the menu. Click inside the game area to activate camera controls.",
+                'restartButton': 'Restart', // For game over screen
+                'welcomeMessage': "Welcome! Use ESC or the menu button to open/close the menu. Click inside the game area to activate camera controls.",
                 'shootButton': 'Shoot',
-                'gamePaused': 'Game Paused.'
+                'gamePaused': 'Game Paused.',
+                'weaponPreviewNoModel': 'Weapon model not available.', // New
+                'weaponNames': { // New nested object for weapon names
+                    'ar15': 'AR-15 Style Rifle',
+                    'pistol': 'Pistol'
+                }
             }
         };
+
+        // Weapon Preview 3D variables
+        let weaponPreviewScene, weaponPreviewCamera, weaponPreviewRenderer;
+        let currentPreviewModel = null;
+        let previewRotationX = 0;
+        let previewRotationY = 0;
+        let isPreviewDragging = false;
+        let prevPreviewMouseX = 0;
+        let prevPreviewMouseY = 0;
+        const previewRotationSpeed = 0.005; // Adjust as needed
 
         // Helper function to play sound only if audio context is running and valid
         function playSound(synth, note, duration) {
@@ -711,7 +828,7 @@
         // --- Three.js Initialization ---
         function initThreeJS() {
             // Scene
-            scene = new THREE.Scene();
+            scene = new THREE.Scene(); 
 
             // Camera (Perspective for FPS)
             camera = new THREE.PerspectiveCamera(ORIGINAL_FOV, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -719,8 +836,7 @@
 
             // Renderer
             const canvas3D = document.getElementById('gameCanvas3D');
-            // Mengaktifkan anti-aliasing dan bayangan
-            renderer = new THREE.WebGLRenderer({ canvas: canvas3D, alpha: false, antialias: true }); // Mengaktifkan anti-aliasing
+            renderer = new THREE.WebGLRenderer({ canvas: canvas3D, alpha: false, antialias: true }); // Initialize renderer here
             renderer.setPixelRatio(window.devicePixelRatio); // Set pixel ratio for high DPI displays
             renderer.shadowMap.enabled = true; // Mengaktifkan peta bayangan
             renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Jenis bayangan yang lebih lembut
@@ -760,7 +876,7 @@
             scene.add(ground);
 
             // Player Yaw Object (handles horizontal rotation for player and camera)
-            playerYawObject = new THREE.Object3D();
+            playerYawObject = new THREE.Object3D(); // Initialize playerYawObject here
             scene.add(playerYawObject); // Add to scene
 
             // Player Capsule (invisible for player collision, child of playerYawObject)
@@ -772,42 +888,38 @@
 
             playerYawObject.add(camera); // Make camera a child of playerYawObject
 
-            // Load Player Model (FBX)
-            const fbxLoader = new THREE.FBXLoader();
-            const playerModelPath = 'https://raw.githubusercontent.com/fajrigans/assetgametembak/main/buat_karakter_ninja_b_0531120650_texture_fbx.fbx';
-            fbxLoader.load(playerModelPath, (fbx) => {
-                playerModel = fbx;
-                playerModel.scale.set(0.01, 0.01, 0.01);
-                playerModel.position.set(0, -PLAYER_HEIGHT_OFFSET, 0); // Position to align with player capsule
-                playerModel.rotation.y = Math.PI; // Rotate to face forward
-                playerModel.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                        if (child.material) {
-                            if (Array.isArray(child.material)) {
-                                child.material.forEach(mat => {
-                                    child.material = new THREE.MeshPhongMaterial({ color: mat.color });
-                                    mat.needsUpdate = true;
-                                });
-                            } else {
-                                child.material = new THREE.MeshPhongMaterial({ color: child.material.color });
-                                child.material.needsUpdate = true;
-                            }
-                        } else {
-                            child.material = new THREE.MeshPhongMaterial({ color: 0xAAAAAA });
-                        }
-                    }
-                });
-                playerYawObject.add(playerModel);
-            }, undefined, (error) => {
-                console.error("Error loading player FBX model:", error);
-                // Fallback to simple capsule if model fails to load
-            });
+            // Load Weapon Model (FBX) - This is for the in-game gun
+            // This will be loaded dynamically based on currentWeapon.modelPath
+            loadInGameWeaponModel(currentWeapon.modelPath);
 
-            // Load Weapon Model (FBX)
-            const weaponModelPath = 'https://raw.githubusercontent.com/fajrigans/assetgametembak/main/ImageToStl.com_buatkan_senjata_temba_0531124219_texture_fbx.fbx';
-            fbxLoader.load(weaponModelPath, (fbx) => {
+
+            // Add initial environment assets
+            addEnvironmentAssets();
+            
+            // Add Skybox
+            addSkybox();
+        }
+
+        // Function to load the in-game weapon model
+        function loadInGameWeaponModel(modelPath) {
+            if (playerGunModel) {
+                camera.remove(playerGunModel);
+                playerGunModel = null;
+            }
+
+            if (!modelPath) {
+                console.warn("No model path for in-game weapon. Using fallback.");
+                const gunGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.5);
+                const gunMaterial = new THREE.MeshPhongMaterial({ color: 0x888888 });
+                playerGunModel = new THREE.Mesh(gunGeometry, gunMaterial);
+                playerGunModel.position.set(0.3, -0.25, -0.5);
+                playerGunModel.castShadow = true;
+                camera.add(playerGunModel);
+                return;
+            }
+
+            const fbxLoader = new THREE.FBXLoader();
+            fbxLoader.load(modelPath, (fbx) => {
                 playerGunModel = fbx;
                 playerGunModel.scale.set(0.005, 0.005, 0.005);
                 playerGunModel.position.set(0.3, -0.25, -0.5);
@@ -833,7 +945,7 @@
                 });
                 camera.add(playerGunModel);
             }, undefined, (error) => {
-                console.error("Error loading weapon FBX model:", error);
+                console.error("Error loading in-game weapon FBX model:", error);
                 // Fallback to simple box gun if model fails to load
                 const gunGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.5);
                 const gunMaterial = new THREE.MeshPhongMaterial({ color: 0x888888 });
@@ -842,14 +954,8 @@
                 playerGunModel.castShadow = true;
                 camera.add(playerGunModel);
             });
-
-
-            // Add initial environment assets
-            addEnvironmentAssets();
-            
-            // Add Skybox
-            addSkybox();
         }
+
 
         // Helper function to add a box obstacle
         function addObstacle(x, y, z, sizeX, sizeY, sizeZ, color = 0x8B4513) {
@@ -904,7 +1010,7 @@
             addObstacle(-WORLD_WIDTH / 2 + 2, 0, 0, 1, 3, 8, 0x6A5ACD);
             addObstacle(WORLD_WIDTH / 2 - 2, 0, 0, 1, 3, 8, 0x6A5ACD);
             addObstacle(-WORLD_WIDTH / 4, 0, -10, 3, 2, 1.5, 0xCD853F);
-            addObstacle(WORLD_WIDTH / 4, 0, -10, 3, 2, 1.5, 0xCD853F);
+            addCylinderObstacle(WORLD_WIDTH / 4, 0, -10, 0.6, 2, 0xCD853F);
 
             for (let i = 0; i < 8; i++) {
                 const x = (Math.random() * (WORLD_WIDTH - 2)) - (WORLD_WIDTH / 2 - 1);
@@ -1011,11 +1117,11 @@
 
             bullets = [];
             enemies = [];
-            score = 0;
+            coins = 0; // Changed from score
             playerHealth = playerMaxHealth;
             playerShield = playerMaxShield;
             lastEnemySpawnTime = Date.now();
-            updateScoreDisplay();
+            updateCoinsDisplay(); // Changed from updateScoreDisplay
             updateHealthShieldDisplay(); // Update new health/shield display
 
             playerYawObject.position.set(0, 0, 5);
@@ -1027,22 +1133,34 @@
         }
 
         // Fungsi untuk memulai permainan (dari awal)
-        function startGame() {
-            console.log("startGame called");
-            initializeGameElements();
+        function startGame() { // This function is for a full restart
+            console.log("startGame called (full restart)");
+            initializeGameElements(); // Resets coins, health, enemies, player position
             gameOver = false;
             gameState = 'playing';
-            gameStartedAtLeastOnce = true; // Set flag when game is started
+            gameStartedAtLeastOnce = true;
 
             hideAllScreens();
-            // Show HUD and menu button when game starts
             playerHud.style.display = 'flex';
             menuToggleButton.style.display = 'block';
             Tone.start();
-            
             requestPointerLock();
-            console.log("Game Started!");
+            console.log("New Game Started!");
         }
+
+        // New function to resume the game without resetting
+        function resumeGame() {
+            console.log("resumeGame called");
+            gameOver = false; // Ensure game is not in game over state
+            gameState = 'playing';
+            hideAllScreens();
+            playerHud.style.display = 'flex';
+            menuToggleButton.style.display = 'block';
+            requestPointerLock();
+            // No need to call animate() here, it's already running.
+            console.log("Game Resumed!");
+        }
+
 
         // --- Update Game State Functions ---
         function updatePlayer(deltaTime) {
@@ -1211,7 +1329,7 @@
                         bullets.splice(i, 1);
 
                         // Apply damage and update health bar
-                        enemy.mesh.userData.currentHealth -= (isZoomed ? ZOOMED_BULLET_DAMAGE : BULLET_DAMAGE);
+                        enemy.mesh.userData.currentHealth -= (isZoomed ? (BULLET_DAMAGE * ZOOMED_BULLET_DAMAGE_MULTIPLIER) : BULLET_DAMAGE);
                         const healthRatio = enemy.mesh.userData.currentHealth / enemy.mesh.userData.maxHealth;
 
                         enemy.mesh.userData.healthBar.scale.x = healthRatio;
@@ -1230,8 +1348,8 @@
                         if (enemy.mesh.userData.currentHealth <= 0) {
                             scene.remove(enemy.mesh);
                             enemies.splice(j, 1);
-                            score += 10;
-                            updateScoreDisplay();
+                            coins += 10; // Changed from score
+                            updateCoinsDisplay(); // Changed from updateScoreDisplay
                         }
                         break; // Bullet hit an enemy, stop checking other enemies for this bullet
                     }
@@ -1240,8 +1358,8 @@
         }
 
         // --- Display Updates ---
-        function updateScoreDisplay() {
-            scoreDisplay.textContent = `${translations[currentLanguage].score} ${score}`;
+        function updateCoinsDisplay() { // Changed from updateScoreDisplay
+            coinsDisplay.textContent = `${translations[currentLanguage].coins} ${coins}`; // Changed from score
         }
 
         function updateHealthShieldDisplay() {
@@ -1294,6 +1412,10 @@
         function updateLanguage(lang) {
             currentLanguage = lang;
             updateLanguageDisplay();
+            // Re-render weapon list to update language
+            if (gameState === 'weaponSelect') {
+                updateWeaponList();
+            }
         }
 
         // --- Game Over / Message Box ---
@@ -1348,7 +1470,7 @@
         // --- Screen Management ---
         function hideAllScreens() {
             mainMenuScreen.style.display = 'none';
-            characterSelectScreen.style.display = 'none';
+            weaponSelectScreen.style.display = 'none'; // Changed from characterSelectScreen
             settingsScreen.style.display = 'none';
             messageBox.style.display = 'none'; // Always hide message box when changing screens
             playerHud.style.display = 'none'; // Hide HUD by default
@@ -1362,14 +1484,23 @@
             if (document.pointerLockElement) {
                 document.exitPointerLock();
             }
-            // Ensure welcome message is displayed on the main menu screen
+
+            // Adjust button visibility and text based on game state
+            if (gameStartedAtLeastOnce && !gameOver) {
+                mainMenuPrimaryButton.textContent = translations[currentLanguage].continueGame;
+                restartGameButton.style.display = 'block'; // Show restart button
+            } else {
+                mainMenuPrimaryButton.textContent = translations[currentLanguage].startGame;
+                restartGameButton.style.display = 'none'; // Hide restart button if not paused game
+            }
             welcomeMessageText.textContent = translations[currentLanguage].welcomeMessage;
         }
 
-        function showCharacterSelection() {
+        function showWeaponSelection() {
             hideAllScreens();
-            characterSelectScreen.style.display = 'flex';
-            gameState = 'characterSelect';
+            weaponSelectScreen.style.display = 'flex';
+            gameState = 'weaponSelect';
+            updateWeaponList(); // Populate weapon list and load preview when screen is shown
         }
 
         function showSettings() {
@@ -1377,6 +1508,227 @@
             settingsScreen.style.display = 'flex';
             gameState = 'settings';
             updateSettingsDisplay(); // Update settings UI when shown
+        }
+
+        // --- Weapon Selection Logic ---
+        function updateWeaponList() {
+            weaponList.innerHTML = ''; // Clear previous list
+            weapons.forEach(weapon => {
+                const weaponDiv = document.createElement('div');
+                weaponDiv.className = 'flex flex-col items-center p-4 bg-gray-800 rounded-lg shadow-md w-64';
+                
+                const weaponName = document.createElement('h2');
+                weaponName.className = 'text-2xl font-bold text-white mb-2';
+                weaponName.textContent = translations[currentLanguage].weaponNames[weapon.id]; // Use translated name
+                weaponDiv.appendChild(weaponName);
+
+                const damageText = document.createElement('p');
+                damageText.className = 'text-lg text-gray-300';
+                damageText.textContent = `${translations[currentLanguage].weaponDamage} ${weapon.damage}`;
+                weaponDiv.appendChild(damageText);
+
+                // Simple damage bar
+                const damageBarContainer = document.createElement('div');
+                damageBarContainer.className = 'w-full h-4 bg-gray-600 rounded-full mt-2 overflow-hidden';
+                const damageBarFill = document.createElement('div');
+                damageBarFill.className = 'h-full bg-red-500';
+                // Scale damage bar relative to max possible damage (e.g., 50)
+                damageBarFill.style.width = `${(weapon.damage / 50) * 100}%`; 
+                damageBarContainer.appendChild(damageBarFill);
+                weaponDiv.appendChild(damageBarContainer);
+
+                const buyButton = document.createElement('button');
+                buyButton.className = 'mt-4 px-4 py-2 rounded-md font-bold transition-colors';
+                if (weapon.current) {
+                    buyButton.textContent = translations[currentLanguage].currentWeapon;
+                    buyButton.className += ' bg-green-600 text-white cursor-default';
+                    buyButton.disabled = true;
+                } else if (coins >= weapon.price) { // Changed from score
+                    buyButton.textContent = `${translations[currentLanguage].buyButton} (${weapon.price})`;
+                    buyButton.className += ' bg-blue-600 hover:bg-blue-700 text-white';
+                    buyButton.onclick = () => buyWeapon(weapon);
+                } else {
+                    buyButton.textContent = `${translations[currentLanguage].buyButton} (${weapon.price})`;
+                    buyButton.className += ' bg-gray-500 text-gray-300 cursor-not-allowed';
+                    buyButton.disabled = true;
+                }
+                weaponDiv.appendChild(buyButton);
+                weaponList.appendChild(weaponDiv);
+            });
+
+            // Load the model for the currently selected weapon into the preview
+            const selectedWeapon = weapons.find(w => w.current);
+            if (selectedWeapon && selectedWeapon.modelPath) {
+                loadWeaponModelForPreview(selectedWeapon.modelPath);
+            } else {
+                // Clear preview if no model path or no weapon selected
+                if (currentPreviewModel) {
+                    weaponPreviewScene.remove(currentPreviewModel);
+                    currentPreviewModel = null;
+                }
+                weaponPreviewHint.textContent = translations[currentLanguage].weaponPreviewNoModel;
+                weaponPreviewHint.style.display = 'block'; // Show hint if no model
+            }
+        }
+
+        function buyWeapon(weaponToBuy) {
+            if (coins >= weaponToBuy.price) { // Changed from score
+                coins -= weaponToBuy.price; // Changed from score
+                currentWeapon.current = false; // Deselect old weapon
+                weaponToBuy.current = true; // Select new weapon
+                currentWeapon = weaponToBuy;
+                BULLET_DAMAGE = currentWeapon.damage; // Update global damage
+                updateCoinsDisplay(); // Changed from updateScoreDisplay
+                updateWeaponList(); // Refresh weapon list display and preview
+                loadInGameWeaponModel(currentWeapon.modelPath); // Load new in-game model
+                console.log(`Weapon ${weaponToBuy.name} bought!`);
+            } else {
+                console.log("Not enough money to buy this weapon!");
+            }
+        }
+
+        // --- Weapon Preview 3D Functions ---
+        function initWeaponPreview3D() {
+            const previewCanvas = document.getElementById('weaponPreviewCanvas');
+            weaponPreviewScene = new THREE.Scene(); // Initialize scene here
+            weaponPreviewCamera = new THREE.PerspectiveCamera(75, previewCanvas.clientWidth / previewCanvas.clientHeight, 0.1, 100);
+            weaponPreviewRenderer = new THREE.WebGLRenderer({ canvas: previewCanvas, alpha: true, antialias: true }); // Initialize renderer here
+            weaponPreviewRenderer.setSize(previewCanvas.clientWidth, previewCanvas.clientHeight);
+            weaponPreviewRenderer.setPixelRatio(window.devicePixelRatio);
+
+            // Lights for the preview scene
+            const ambientLight = new THREE.AmbientLight(0x404040, 2); // Brighter ambient
+            weaponPreviewScene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 5, 5);
+            weaponPreviewScene.add(directionalLight);
+            const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight2.position.set(-5, -5, -5);
+            weaponPreviewScene.add(directionalLight2);
+
+            // Camera position for preview
+            weaponPreviewCamera.position.z = 2;
+            weaponPreviewCamera.position.y = 0.5;
+
+            // Event listeners for preview rotation
+            previewCanvas.addEventListener('mousedown', (e) => {
+                isPreviewDragging = true;
+                prevPreviewMouseX = e.clientX;
+                prevPreviewMouseY = e.clientY;
+                previewCanvas.style.cursor = 'grabbing';
+            });
+            previewCanvas.addEventListener('mousemove', (e) => {
+                if (isPreviewDragging) {
+                    const deltaX = e.clientX - prevPreviewMouseX;
+                    const deltaY = e.clientY - prevPreviewMouseY;
+                    previewRotationY += deltaX * previewRotationSpeed;
+                    previewRotationX += deltaY * previewRotationSpeed;
+                    // Limit vertical rotation to prevent flipping
+                    previewRotationX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, previewRotationX));
+                    prevPreviewMouseX = e.clientX;
+                    prevPreviewMouseY = e.clientY;
+                }
+            });
+            previewCanvas.addEventListener('mouseup', () => {
+                isPreviewDragging = false;
+                previewCanvas.style.cursor = 'grab';
+            });
+            previewCanvas.addEventListener('mouseleave', () => {
+                isPreviewDragging = false;
+                previewCanvas.style.cursor = 'grab';
+            });
+
+            // Touch events for mobile
+            previewCanvas.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    isPreviewDragging = true;
+                    prevPreviewMouseX = e.touches[0].clientX;
+                    prevPreviewMouseY = e.touches[0].clientY;
+                }
+            }, { passive: false });
+            previewCanvas.addEventListener('touchmove', (e) => {
+                if (isPreviewDragging && e.touches.length === 1) {
+                    e.preventDefault(); // Prevent scrolling
+                    const deltaX = e.touches[0].clientX - prevPreviewMouseX;
+                    const deltaY = e.touches[0].clientY - prevPreviewMouseY;
+                    previewRotationY += deltaX * previewRotationSpeed;
+                    previewRotationX += deltaY * previewRotationSpeed;
+                    previewRotationX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, previewRotationX));
+                    prevPreviewMouseX = e.touches[0].clientX;
+                    prevPreviewMouseY = e.touches[0].clientY;
+                }
+            }, { passive: false });
+            previewCanvas.addEventListener('touchend', () => {
+                isPreviewDragging = false;
+            });
+            previewCanvas.addEventListener('touchcancel', () => {
+                isPreviewDragging = false;
+            });
+
+            // Initial cursor style
+            previewCanvas.style.cursor = 'grab';
+
+            animateWeaponPreview();
+        }
+
+        function animateWeaponPreview() {
+            requestAnimationFrame(animateWeaponPreview);
+
+            if (currentPreviewModel) {
+                currentPreviewModel.rotation.y = previewRotationY;
+                currentPreviewModel.rotation.x = previewRotationX;
+            }
+            weaponPreviewRenderer.render(weaponPreviewScene, weaponPreviewCamera);
+        }
+
+        function loadWeaponModelForPreview(weaponModelPath) {
+            if (currentPreviewModel) {
+                weaponPreviewScene.remove(currentPreviewModel);
+                currentPreviewModel = null;
+            }
+
+            if (!weaponModelPath) {
+                console.warn("No model path provided for weapon preview.");
+                weaponPreviewHint.textContent = translations[currentLanguage].weaponPreviewNoModel;
+                weaponPreviewHint.style.display = 'block'; // Show hint if no model
+                return;
+            }
+
+            weaponPreviewHint.textContent = "Memuat model...";
+            weaponPreviewHint.style.display = 'block'; // Show loading hint
+
+            const fbxLoader = new THREE.FBXLoader();
+            fbxLoader.load(weaponModelPath, (fbx) => {
+                currentPreviewModel = fbx;
+                // Adjust scale and position for preview
+                currentPreviewModel.scale.set(0.01, 0.01, 0.01); // Example scale, adjust as needed
+                currentPreviewModel.position.set(0, 0, 0); // Center the model
+                currentPreviewModel.rotation.set(0, 0, 0); // Reset initial rotation
+
+                currentPreviewModel.traverse((child) => {
+                    if (child.isMesh) {
+                        // Ensure materials are compatible with Phong (for lighting)
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(mat => {
+                                child.material = new THREE.MeshPhongMaterial({ color: mat.color || 0xAAAAAA });
+                                mat.needsUpdate = true;
+                            });
+                        } else {
+                            child.material = new THREE.MeshPhongMaterial({ color: child.material.color || 0xAAAAAA });
+                            child.material.needsUpdate = true;
+                        }
+                    }
+                });
+
+                weaponPreviewScene.add(currentPreviewModel);
+                weaponPreviewHint.style.display = 'none'; // Hide hint once model is loaded
+                previewRotationX = 0; // Reset rotation when new model is loaded
+                previewRotationY = 0;
+            }, undefined, (error) => {
+                console.error("Error loading weapon preview FBX model:", error);
+                weaponPreviewHint.textContent = translations[currentLanguage].weaponPreviewNoModel;
+                weaponPreviewHint.style.display = 'block'; // Show error hint
+            });
         }
 
 
@@ -1393,13 +1745,12 @@
                         gameState = 'menu'; // Set to menu state directly
                         showMainMenu(); // Show main menu
                     }
-                } else if (gameState === 'menu' && gameStartedAtLeastOnce && !gameOver) {
-                    // If in main menu (as a pause) and game has been started, resume game
-                    startGame(); // This will effectively resume by resetting and starting fresh.
-                                 // This fulfills "mulai ulang" (restart) when "dijeda" (paused).
-                } else if (gameState === 'characterSelect' || gameState === 'settings' || gameState === 'gameOver') {
+                } else if (gameState === 'weaponSelect' || gameState === 'settings' || gameState === 'gameOver') {
                     // From sub-menu or game over, go to main menu
                     showMainMenu();
+                } else if (gameState === 'menu' && gameStartedAtLeastOnce && !gameOver) {
+                    // If in main menu (as a pause) and game has been started, resume game
+                    resumeGame();
                 }
             } else if (gameState === 'playing') { // Only process other keys if playing
                 keys[e.key] = true;
@@ -1506,7 +1857,7 @@
             bulletMesh.setRotationFromQuaternion(tempQuaternion);
 
             scene.add(bulletMesh);
-            bullets.push({ mesh: bulletMesh, direction: bulletDirection, damage: (isZoomed ? ZOOMED_BULLET_DAMAGE : BULLET_DAMAGE) });
+            bullets.push({ mesh: bulletMesh, direction: bulletDirection });
             playSound(playerShootSynth, "C4", "16n");
         }
 
@@ -1557,7 +1908,7 @@
             isTouchDragging = false;
         });
         canvas3D.addEventListener('touchcancel', () => {
-            isTouchDragging = false;
+            isTouchDragging = false; // Also reset preview dragging on touch cancel
         });
 
 
@@ -1588,10 +1939,17 @@
         restartButton.addEventListener('click', startGame); // This button is only in messageBox (Game Over), always restarts.
 
         // Menu button listeners
-        startGameButton.addEventListener('click', startGame); // This button is in Main Menu, always restarts.
-        characterSelectButton.addEventListener('click', showCharacterSelection);
+        mainMenuPrimaryButton.addEventListener('click', () => {
+            if (gameStartedAtLeastOnce && !gameOver) {
+                resumeGame();
+            } else {
+                startGame();
+            }
+        });
+        restartGameButton.addEventListener('click', startGame); // This always triggers a full restart
+        weaponSelectButton.addEventListener('click', showWeaponSelection); // Renamed
         settingsButton.addEventListener('click', showSettings);
-        backToMainMenuFromCharacterButton.addEventListener('click', showMainMenu);
+        backToMainMenuFromWeaponButton.addEventListener('click', showMainMenu); // New listener
         backToMainMenuFromSettingsButton.addEventListener('click', showMainMenu);
 
         menuToggleButton.addEventListener('click', () => {
@@ -1606,7 +1964,7 @@
                 }
             } else if (gameState === 'menu' && gameStartedAtLeastOnce && !gameOver) {
                 // If in main menu (as a pause) and game has been started, resume game
-                startGame(); // This will effectively resume by resetting and starting fresh.
+                resumeGame();
             }
         });
 
@@ -1630,9 +1988,19 @@
         function resizeRenderer() {
             const width = window.innerWidth;
             const height = window.innerHeight;
-            renderer.setSize(width, height);
-            camera.aspect = width / height;
-            camera.updateProjectionMatrix();
+            if (renderer) { // Check if renderer is defined
+                renderer.setSize(width, height);
+            }
+            if (camera) { // Check if camera is defined
+                camera.aspect = width / height;
+                camera.updateProjectionMatrix();
+            }
+            // Resize preview canvas as well
+            if (weaponPreviewCanvas && weaponPreviewRenderer && weaponPreviewCamera) { // Check all preview related objects
+                weaponPreviewRenderer.setSize(weaponPreviewCanvas.clientWidth, weaponPreviewCanvas.clientHeight);
+                weaponPreviewCamera.aspect = weaponPreviewCanvas.clientWidth / weaponPreviewCanvas.clientHeight;
+                weaponPreviewCamera.updateProjectionMatrix();
+            }
         }
 
         window.addEventListener('resize', resizeRenderer);
@@ -1650,16 +2018,20 @@
             const t = translations[currentLanguage];
 
             // Update main menu
-            document.getElementById('mainMenuScreen').querySelector('h1').textContent = t.gameTitle;
+            mainMenuTitle.textContent = t.gameTitle;
             welcomeMessageText.textContent = t.welcomeMessage; // Set welcome message
-            startGameButton.textContent = t.startGame;
-            characterSelectButton.textContent = t.characterSelect;
+            // Buttons are handled dynamically by showMainMenu, but their text needs updating
+            mainMenuPrimaryButton.textContent = (gameStartedAtLeastOnce && !gameOver) ? t.continueGame : t.startGame;
+            restartGameButton.textContent = t.restartGame;
+            weaponSelectButton.textContent = t.selectWeapon;
             settingsButton.textContent = t.settings;
 
-            // Update character select screen
-            characterSelectScreen.querySelector('h1').textContent = t.charSelectTitle;
-            characterSelectScreen.querySelector('p').textContent = t.charSelectPlaceholder;
-            backToMainMenuFromCharacterButton.textContent = t.backToMainMenu;
+            // Update weapon select screen
+            weaponSelectTitle.textContent = t.weaponSelectTitle;
+            backToMainMenuFromWeaponButton.textContent = t.backToMainMenu;
+            // Update weapon preview hint - now always hidden
+            weaponPreviewHint.style.display = 'none';
+
 
             // Update settings screen
             settingsScreen.querySelector('h1').textContent = t.settingsTitle;
@@ -1670,7 +2042,7 @@
             backToMainMenuFromSettingsButton.textContent = t.backToMainMenu;
 
             // Update HUD
-            scoreDisplay.textContent = `${t.score} ${score}`;
+            coinsDisplay.textContent = `${t.coins} ${coins}`; // Changed from score
             healthLabel.textContent = `${t.health} ${Math.max(0, Math.floor(playerHealth))}`;
             shieldLabel.textContent = `${t.shield} ${Math.max(0, Math.floor(playerShield))}`;
 
@@ -1693,6 +2065,7 @@
         // Initial setup on window load
         window.onload = function() {
             initThreeJS();
+            initWeaponPreview3D(); // Initialize weapon preview scene
             // Set initial volume for Tone.js
             Tone.Destination.volume.value = (masterVolume * 40) - 40;
             // Start with main menu visible
@@ -1701,6 +2074,9 @@
             updateLanguageDisplay();
             updateHealthShieldDisplay(); // Ensure health/shield bars are initialized
             updateSettingsDisplay(); // Ensure settings UI reflects initial values
+
+            // Set initial bullet damage based on default weapon
+            BULLET_DAMAGE = currentWeapon.damage;
 
             // Start the animation loop, but game logic will only run when gameState is 'playing'
             animate();
