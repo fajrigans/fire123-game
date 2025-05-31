@@ -1117,7 +1117,10 @@
 
             bullets = [];
             enemies = [];
-            coins = 0; // Changed from score
+            // Load coins from localStorage, default to 0 if not found
+            const savedCoins = localStorage.getItem('gameCoins');
+            coins = savedCoins ? parseInt(savedCoins) : 0;
+            
             playerHealth = playerMaxHealth;
             playerShield = playerMaxShield;
             lastEnemySpawnTime = Date.now();
@@ -1360,6 +1363,7 @@
         // --- Display Updates ---
         function updateCoinsDisplay() { // Changed from updateScoreDisplay
             coinsDisplay.textContent = `${translations[currentLanguage].coins} ${coins}`; // Changed from score
+            localStorage.setItem('gameCoins', coins); // Save coins to localStorage
         }
 
         function updateHealthShieldDisplay() {
@@ -1578,8 +1582,7 @@
                 weaponToBuy.current = true; // Select new weapon
                 currentWeapon = weaponToBuy;
                 BULLET_DAMAGE = currentWeapon.damage; // Update global damage
-                updateCoinsDisplay(); // Changed from updateScoreDisplay
-                updateWeaponList(); // Refresh weapon list display and preview
+                updateCoinsDisplay(); // Refresh weapon list display and preview
                 loadInGameWeaponModel(currentWeapon.modelPath); // Load new in-game model
                 console.log(`Weapon ${weaponToBuy.name} bought!`);
             } else {
