@@ -1127,22 +1127,39 @@ const MainMenu = () => {
 const CharacterSelectScreen = () => {
     const { setScreen, language } = useContext(GameContext);
     const canvasRef = useRef(null);
-    let scene, camera, renderer, characterModel;
+    let scene, camera, renderer;
+    let characterModel = null; // Initialize to null
+    let animationFrameId = null; // To store the requestAnimationFrame ID
+
+    // Animation function for character rotation
+    const animateCharacterRotation = () => {
+        if (characterModel) {
+            characterModel.rotation.y += 0.01; // Rotate character
+        }
+        if (renderer && scene && camera) { // Ensure all are defined before rendering
+            renderer.render(scene, camera);
+        }
+        animationFrameId = requestAnimationFrame(animateCharacterRotation);
+    };
 
     useEffect(() => {
         const currentCanvas = canvasRef.current;
         if (!currentCanvas) return;
 
-        // Ensure canvas dimensions are set for proper rendering
         const updateCanvasSize = () => {
             const parent = currentCanvas.parentElement;
             if (parent) {
                 currentCanvas.width = parent.clientWidth;
                 currentCanvas.height = parent.clientHeight;
+                if (camera && renderer) {
+                    renderer.setSize(currentCanvas.clientWidth, currentCanvas.clientHeight);
+                    camera.aspect = currentCanvas.clientWidth / currentCanvas.clientHeight;
+                    camera.updateProjectionMatrix();
+                }
             }
         };
-        updateCanvasSize(); // Set initial size
 
+        // Initialize Three.js components
         scene = new THREE.Scene();
         camera = new THREE.PerspectiveCamera(75, currentCanvas.clientWidth / currentCanvas.clientHeight, 0.1, 100);
         renderer = new THREE.WebGLRenderer({ canvas: currentCanvas, alpha: true, antialias: true });
@@ -1167,15 +1184,8 @@ const CharacterSelectScreen = () => {
             camera.position.set(0, 0, 3); // Position camera to view the model
             camera.lookAt(characterModel.position);
 
-            // Animation loop for character rotation
-            const animateCharacter = () => {
-                if (characterModel) {
-                    characterModel.rotation.y += 0.01; // Rotate character
-                }
-                renderer.render(scene, camera);
-                requestAnimationFrame(animateCharacter);
-            };
-            animateCharacter();
+            // Start animation loop after model loads
+            animateCharacterRotation();
 
         }, undefined, (error) => {
             console.error("Error loading character model for select screen:", error);
@@ -1186,31 +1196,21 @@ const CharacterSelectScreen = () => {
             scene.add(characterModel);
             camera.position.set(0, 0, 3);
             camera.lookAt(characterModel.position);
-            const animateCharacter = () => {
-                if (characterModel) {
-                    characterModel.rotation.y += 0.01;
-                }
-                renderer.render(scene, camera);
-                requestAnimationFrame(animateCharacter);
-            };
-            animateCharacter();
+            // Start animation loop for fallback model
+            animateCharacterRotation();
         });
 
         const handleResize = () => {
             updateCanvasSize(); // Update canvas element's width/height attributes
-            if (camera && renderer) {
-                const width = currentCanvas.clientWidth;
-                const height = currentCanvas.clientHeight;
-                renderer.setSize(width, height);
-                camera.aspect = width / height;
-                camera.updateProjectionMatrix();
-            }
         };
 
         window.addEventListener('resize', handleResize);
 
         return () => {
             window.removeEventListener('resize', handleResize);
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId); // Cancel the animation frame
+            }
             if (renderer) {
                 renderer.dispose();
             }
@@ -1225,8 +1225,13 @@ const CharacterSelectScreen = () => {
                     }
                 });
             }
+            // Clear references
+            scene = null;
+            camera = null;
+            renderer = null;
+            characterModel = null;
         };
-    }, []);
+    }, []); // Empty dependency array means this effect runs once on mount and cleans up on unmount
 
     return (
         <div className="flex flex-col items-center p-8 bg-gray-800 bg-opacity-90 rounded-lg shadow-xl text-white max-w-lg w-full">
