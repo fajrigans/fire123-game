@@ -1,0 +1,1525 @@
+import React, { useState, useEffect, useRef, createContext, useContext, Component } from 'react';
+import * as THREE from 'three';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import * as Tone from 'tone';
+import { PolySynth, NoiseSynth, Synth } from 'tone';
+
+// Context untuk manajemen state global game
+const GameContext = createContext();
+
+// Objek terjemahan untuk dukungan multi-bahasa
+const translations = {
+    'mainMenuTitle': { 'id': 'Game FPS', 'en': 'FPS Game' },
+    'startGameButton': { 'id': 'Mulai Permainan', 'en': 'Start Game' },
+    'characterSelectButton': { 'id': 'Pilih Karakter', 'en': 'Select Character' },
+    'settingsButton': { 'id': 'Pengaturan', 'en': 'Settings' },
+    'characterSelectSoon': { 'id': 'Fitur ini akan segera hadir!', 'en': 'This feature is coming soon!' },
+    'settingsTitle': { 'id': 'Pengaturan', 'en': 'Settings' },
+    'settingsDesc': { 'id': 'Sesuaikan pengalaman bermain Anda.', 'en': 'Adjust your gaming experience.' },
+    'sensitivityLabel': { 'id': 'Sensitivitas Mouse', 'en': 'Mouse Sensitivity' },
+    'volumeLabel': { 'id': 'Volume', 'en': 'Volume' },
+    'languageLabel': { 'id': 'Bahasa', 'en': 'Language' },
+    'indonesianLang': { 'id': 'Bahasa Indonesia', 'en': 'Indonesian' },
+    'englishLang': { 'id': 'English', 'en': 'English' },
+    'backToMainMenu': { 'id': 'Kembali ke Menu Utama', 'en': 'Back to Main Menu' },
+    'gamePausedTitle': { 'id': 'Permainan Dijeda', 'en': 'Game Paused' },
+    'continueGameButton': { 'id': 'Lanjutkan Permainan', 'en': 'Continue Game' },
+    'restartGameButton': { 'id': 'Restart Permainan', 'en': 'Restart Game' },
+    'gameOverTitle': { 'id': 'GAME OVER!', 'en': 'GAME OVER!' },
+    'finalScore': { 'id': 'Skor Akhir:', 'en': 'Final Score:' },
+    'restartButton': { 'id': 'Mulai Ulang', 'en': 'Restart' },
+    'scoreDisplay': { 'id': 'Skor:', 'en': 'Score:' },
+    'healthDisplay': { 'id': 'Darah:', 'en': 'Health:' },
+    'webglError': { 'id': 'Error: Tidak dapat membuat konteks WebGL.', 'en': 'Error: Cannot create WebGL context.' },
+    'browserSupport': { 'id': 'Browser Anda mungkin tidak mendukungnya atau ada masalah sumber daya.', 'en': 'Your browser might not support it or there are resource issues.' },
+    'clickToStart': { 'id': 'Klik untuk memulai game dan mengaktifkan audio', 'en': 'Click to start game and enable audio' },
+    'enemyCollisionGameOver': { 'id': 'GAME OVER! Musuh menabrak Anda.', 'en': 'GAME OVER! Enemy collided with you.' },
+    'uncaughtError': { 'id': 'Terjadi Kesalahan!', 'en': 'An Error Occurred!' },
+    'sorrySomethingWentWrong': { 'id': 'Maaf, ada yang tidak beres.', 'en': 'Sorry, something went wrong.' },
+    'errorDetails': { 'id': 'Detail Error', 'en': 'Error Details' },
+    'reloadPage': { 'id': 'Muat Ulang Halaman', 'en': 'Reload Page' },
+    'screenError': { 'id': 'Kesalahan Layar', 'en': 'Screen Error' },
+    'shootButton': { 'id': 'Tembak', 'en': 'Shoot' }, // Added translation for shoot button
+};
+
+// Fungsi pembantu untuk terjemahan
+const t = (key, lang) => translations[key]?.[lang] || key;
+
+// Utility function to play sound
+function playSound(synth, param1, param2) {
+    if (Tone.context.state === 'running' && Tone.context.currentTime !== undefined && Tone.context.currentTime !== null) {
+        try {
+            if (synth instanceof Tone.NoiseSynth) {
+                synth.triggerAttackRelease(param1, Tone.now());
+            } else if (synth && synth.triggerAttackRelease) {
+                synth.triggerAttackRelease(param1, param2, Tone.now());
+            }
+        } catch (e) {
+            console.error("Error playing sound:", e);
+        }
+    } else {
+        console.warn("Audio context not running or time not valid, cannot play sound.");
+    }
+}
+
+// Tone.js Synths (initialized outside component to avoid re-creation)
+const playerShootSynth = new PolySynth(Synth, {
+    oscillator: { type: "sine" },
+    envelope: {
+        attack: 0.001,
+        decay: 0.1,
+        sustain: 0.05,
+        release: 0.1
+    }
+}).toDestination();
+
+const enemyExplodeSynth = new NoiseSynth({
+    noise: { type: "white" },
+    envelope: {
+        attack: 0.001,
+        decay: 0.2,
+        sustain: 0.01,
+        release: 0.3
+    }
+}).toDestination();
+
+const playerHitSynth = new Synth({
+    oscillator: { type: "triangle" },
+    envelope: {
+        attack: 0.001,
+        decay: 0.2,
+        sustain: 0.1,
+        release: 0.5
+    }
+}).toDestination();
+
+// --- Game Constants (Moved to top-level scope) ---
+const DEBUG_COLLISIONS = false;
+
+// Player properties
+const PLAYER_HEIGHT_OFFSET = 0.5;
+const PLAYER_RADIUS = 0.3;
+const PLAYER_BASE_SPEED = 2.0;
+const PLAYER_MAX_HEALTH = 100;
+
+// Bullet properties
+const BULLET_WIDTH = 0.05;
+const BULLET_HEIGHT = 0.8;
+const BULLET_SPEED = 15;
+const BULLET_COLOR = 0xFF00FF;
+const BULLET_GEOMETRY = new THREE.CylinderGeometry(BULLET_WIDTH, BULLET_WIDTH, BULLET_HEIGHT, 8).rotateX(Math.PI / 2);
+const BULLET_DAMAGE = 10;
+const ZOOMED_BULLET_DAMAGE = 25;
+
+// Enemy properties
+const ENEMY_SIZE = 0.7;
+const ENEMY_BODY_HEIGHT = 0.8;
+const ENEMY_HEAD_RADIUS = 0.2;
+const ENEMY_ARM_LENGTH = 0.5;
+const ENEMY_LEG_LENGTH = 0.5;
+const ENEMY_SPEED_MIN = 0.5;
+const ENEMY_SPEED_MAX = 2.0;
+const ENEMY_COLOR = 0xFF0000;
+const ENEMY_SPAWN_INTERVAL = 1500;
+const ENEMY_MAX_HEALTH = 30;
+const ENEMY_COLLISION_DAMAGE = 20;
+
+// World dimensions
+const WORLD_SCALE_FACTOR = 3.5;
+const ORIGINAL_WORLD_WIDTH = 10;
+const ORIGINAL_WORLD_DEPTH = 15;
+const WORLD_WIDTH = ORIGINAL_WORLD_WIDTH * WORLD_SCALE_FACTOR;
+const WORLD_DEPTH = ORIGINAL_WORLD_DEPTH * WORLD_SCALE_FACTOR;
+const WORLD_HEIGHT = 5;
+
+// FOV for zoom
+const ORIGINAL_FOV = 75;
+const ZOOM_FACTOR = 1.5;
+const ZOOM_FOV = ORIGINAL_FOV / ZOOM_FACTOR;
+
+// Epsilon for collision push-out
+const EPSILON = 0.01;
+
+// --- Game Screen Component (Three.js Logic) ---
+const GameScreen = () => {
+    const { setPlayerHealth, setScore, setScreen, isPaused, setIsPaused, playerHealth, sensitivity, gameVolume, language } = useContext(GameContext);
+    const mountRef = useRef(null);
+    const gameRunningRef = useRef(false);
+    const gameOverRef = useRef(false);
+    const scoreRef = useRef(0);
+    const playerHealthRef = useRef(playerHealth);
+    const [webglError, setWebglError] = useState(false);
+    const [showOverlay, setShowOverlay] = useState(true);
+    const [isZoomed, setIsZoomed] = useState(false);
+
+    // Three.js variables
+    let scene, camera, renderer;
+    let playerYawObject;
+    let playerCapsule;
+    let bullets = [];
+    let enemies = [];
+    let obstacles = [];
+    let playerGunModel;
+    let playerModel;
+
+    // Game variables
+    let lastFrameTime = 0;
+
+    // Input states
+    const keys = {};
+    let isMouseDown = false;
+    let touchMoveForward = false;
+    let touchMoveBackward = false;
+    let touchMoveLeft = false;
+    let touchMoveRight = false;
+
+    // Camera rotation
+    let isPointerLocked = false;
+    const mouseSensitivity = sensitivity; // Menggunakan sensitivitas dari konteks
+    const pitchLimit = Math.PI / 2 - 0.1;
+    let isTouchDragging = false;
+    let previousTouchX = 0;
+    let previousTouchY = 0;
+    const touchSensitivity = 0.003;
+    const touchDragThreshold = 5;
+
+    // Refs for Three.js objects to be accessible in helper functions
+    const cameraRef = useRef(null);
+    const rendererRef = useRef(null);
+    const sceneRef = useRef(null);
+
+    // Function to convert 3D world coordinates to 2D screen coordinates
+    const worldToScreen = (vector, camera, renderer) => {
+        if (!renderer || !camera) return null;
+
+        const width = renderer.domElement.clientWidth;
+        const height = renderer.domElement.clientHeight;
+
+        const tempVector = vector.clone();
+        tempVector.project(camera);
+
+        const x = (tempVector.x * 0.5 + 0.5) * width;
+        const y = (-tempVector.y * 0.5 + 0.5) * height;
+
+        return { x, y };
+    };
+
+    // --- Three.js Initialization ---
+    const initThreeJS = () => {
+        if (!mountRef.current) {
+            setWebglError(true);
+            return;
+        }
+
+        try {
+            renderer = new THREE.WebGLRenderer({ canvas: mountRef.current, alpha: false, antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            resizeRenderer();
+            setWebglError(false);
+
+            rendererRef.current = renderer;
+        } catch (e) {
+            console.error("Failed to create WebGLRenderer:", e);
+            setWebglError(true);
+            return;
+        }
+
+        scene = new THREE.Scene();
+        sceneRef.current = scene;
+
+        camera = new THREE.PerspectiveCamera(ORIGINAL_FOV, mountRef.current.clientWidth / mountRef.current.clientHeight, 0.1, 1000);
+        camera.position.set(0, PLAYER_HEIGHT_OFFSET, 0);
+        cameraRef.current = camera;
+
+        playerYawObject = new THREE.Object3D();
+        scene.add(playerYawObject);
+        playerYawObject.add(camera);
+
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        scene.add(ambientLight);
+
+        const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.7);
+        scene.add(hemisphereLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 15, 5);
+        directionalLight.castShadow = true;
+        scene.add(directionalLight);
+
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.camera.near = 0.5;
+        directionalLight.shadow.camera.far = 50;
+        directionalLight.shadow.camera.left = -WORLD_WIDTH / 2;
+        directionalLight.shadow.camera.right = WORLD_WIDTH / 2;
+        directionalLight.shadow.camera.top = WORLD_DEPTH / 2;
+        directionalLight.shadow.camera.bottom = -WORLD_DEPTH / 2;
+        directionalLight.shadow.bias = -0.0005;
+
+        const groundMaterial = new THREE.MeshPhongMaterial({ color: 0x228B22, side: THREE.DoubleSide });
+        const groundGeometry = new THREE.PlaneGeometry(WORLD_WIDTH, WORLD_DEPTH);
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = 0;
+        ground.position.z = -WORLD_DEPTH / 2 + (ORIGINAL_WORLD_DEPTH / 2);
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        const playerCapsuleGeometry = new THREE.CylinderGeometry(PLAYER_RADIUS, PLAYER_RADIUS, PLAYER_HEIGHT_OFFSET * 2, 16);
+        const playerCapsuleMaterial = DEBUG_COLLISIONS ? new THREE.MeshBasicMaterial({ color: 0x00FF00, wireframe: true, transparent: true, opacity: 0.5 }) : new THREE.MeshBasicMaterial({ visible: false });
+        playerCapsule = new THREE.Mesh(playerCapsuleGeometry, playerCapsuleMaterial);
+        playerCapsule.position.y = PLAYER_HEIGHT_OFFSET;
+        playerYawObject.add(playerCapsule);
+
+        const fbxLoader = new FBXLoader();
+        const playerModelPath = 'https://raw.githubusercontent.com/fajrigans/assetgametembak/main/buat_karakter_ninja_b_0531120650_texture_fbx.fbx';
+        fbxLoader.load(playerModelPath, (fbx) => {
+            playerModel = fbx;
+            playerModel.scale.set(0.01, 0.01, 0.01);
+            playerModel.position.set(0, -PLAYER_HEIGHT_OFFSET, 0);
+            playerModel.rotation.y = Math.PI;
+
+            playerModel.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    if (child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(mat => {
+                                child.material = new THREE.MeshPhongMaterial({ color: mat.color });
+                                mat.needsUpdate = true;
+                            });
+                        } else {
+                            child.material = new THREE.MeshPhongMaterial({ color: child.material.color });
+                            child.material.needsUpdate = true;
+                        }
+                    } else {
+                         child.material = new THREE.MeshPhongMaterial({ color: 0xAAAAAA });
+                    }
+                }
+            });
+            playerYawObject.add(playerModel);
+        }, undefined, (error) => {
+            console.error("Error loading player FBX model:", error);
+        });
+
+        const weaponLoader = new FBXLoader();
+        const weaponModelPath = 'https://raw.githubusercontent.com/fajrigans/assetgametembak/main/ImageToStl.com_buatkan_senjata_temba_0531124219_texture_fbx.fbx';
+        weaponLoader.load(weaponModelPath, (fbx) => {
+            playerGunModel = fbx;
+            playerGunModel.scale.set(0.005, 0.005, 0.005);
+            playerGunModel.position.set(0.3, -0.25, -0.5);
+            playerGunModel.rotation.set(Math.PI, Math.PI, Math.PI);
+            playerGunModel.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    if (child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(mat => {
+                                child.material = new THREE.MeshPhongMaterial({ color: mat.color });
+                                mat.needsUpdate = true;
+                            });
+                        } else {
+                            child.material = new THREE.MeshPhongMaterial({ color: child.material.color });
+                            child.material.needsUpdate = true;
+                        }
+                    } else {
+                         child.material = new THREE.MeshPhongMaterial({ color: 0x888888 });
+                    }
+                }
+            });
+            camera.add(playerGunModel);
+        }, undefined, (error) => {
+            console.error("Error loading weapon FBX model:", error);
+            const gunGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.5);
+            const gunMaterial = new THREE.MeshPhongMaterial({ color: 0x888888 });
+            playerGunModel = new THREE.Mesh(gunGeometry, gunMaterial);
+            playerGunModel.position.set(0.3, -0.25, -0.5);
+            playerGunModel.castShadow = true;
+            camera.add(playerGunModel);
+        });
+
+        addEnvironmentAssets();
+        addSkybox();
+    };
+
+    const addObstacle = (x, y, z, sizeX, sizeY, sizeZ, color = 0x8B4513) => {
+        const obstacleGeometry = new THREE.BoxGeometry(sizeX, sizeY, sizeZ);
+        const obstacleMaterial = new THREE.MeshPhongMaterial({ color: color });
+        const obstacleMesh = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
+        obstacleMesh.position.set(x, y + sizeY / 2, z);
+        obstacleMesh.castShadow = true;
+        obstacleMesh.receiveShadow = true;
+        scene.add(obstacleMesh);
+        obstacles.push(obstacleMesh);
+
+        if (DEBUG_COLLISIONS) {
+            const boxHelper = new THREE.BoxHelper(obstacleMesh, 0xFFFF00);
+            scene.add(boxHelper);
+            obstacleMesh.userData.boxHelper = boxHelper;
+        }
+    };
+
+    const addCylinderObstacle = (x, y, z, radius, height, color = 0x696969) => {
+        const cylinderGeometry = new THREE.CylinderGeometry(radius, radius, height, 32);
+        const cylinderMaterial = new THREE.MeshPhongMaterial({ color: color });
+        const cylinderMesh = new THREE.Mesh(cylinderGeometry, cylinderMaterial);
+        cylinderMesh.position.set(x, y + height / 2, z);
+        cylinderMesh.castShadow = true;
+        cylinderMesh.receiveShadow = true;
+        scene.add(cylinderMesh);
+        obstacles.push(cylinderMesh);
+
+        if (DEBUG_COLLISIONS) {
+            const boxHelper = new THREE.BoxHelper(cylinderMesh, 0xFFFF00);
+            scene.add(boxHelper);
+            cylinderMesh.userData.boxHelper = boxHelper;
+        }
+    };
+
+    const addEnvironmentAssets = () => {
+        obstacles.forEach(o => {
+            scene.remove(o);
+            if (DEBUG_COLLISIONS && o.userData.boxHelper) {
+                scene.remove(o.userData.boxHelper);
+            }
+        });
+        obstacles = [];
+
+        addObstacle(0, 0, -5, 2, 1, 2, 0x808080);
+        addCylinderObstacle(3, 0, -7, 0.8, 2.5, 0x556B2F);
+        addObstacle(-3, 0, -3, 1.5, 1.5, 1.5, 0x708090);
+        addObstacle(0, 0, 8, 10, 5, 4, 0x4682B4);
+        addObstacle(0, 5, 8, 11, 1, 5, 0x8B4513);
+        addObstacle(-WORLD_WIDTH / 2 + 2, 0, 0, 1, 3, 8, 0x6A5ACD);
+        addObstacle(WORLD_WIDTH / 2 - 2, 0, 0, 1, 3, 8, 0x6A5ACD);
+        addObstacle(-WORLD_WIDTH / 4, 0, -10, 3, 2, 1.5, 0xCD853F);
+        addObstacle(WORLD_WIDTH / 4, 0, -10, 3, 2, 1.5, 0xCD853F);
+
+        for (let i = 0; i < 8; i++) {
+            const x = (Math.random() * (WORLD_WIDTH - 2)) - (WORLD_WIDTH / 2 - 1);
+            const z = (Math.random() * (WORLD_DEPTH - 2)) - (WORLD_DEPTH / 2 - 1);
+            const size = 0.5 + Math.random() * 1.5;
+            const height = 0.5 + Math.random() * 2;
+            addObstacle(x, 0, z, size, height, size, 0x778899);
+        }
+    };
+
+    const createEnemyMesh = () => {
+        const enemyGroup = new THREE.Group();
+        const material = new THREE.MeshPhongMaterial({ color: ENEMY_COLOR });
+
+        const bodyGeometry = new THREE.BoxGeometry(ENEMY_SIZE * 0.6, ENEMY_BODY_HEIGHT, ENEMY_SIZE * 0.4);
+        const bodyMesh = new THREE.Mesh(bodyGeometry, material);
+        bodyMesh.position.y = ENEMY_BODY_HEIGHT / 2;
+        bodyMesh.castShadow = true;
+        enemyGroup.add(bodyMesh);
+
+        const headGeometry = new THREE.SphereGeometry(ENEMY_HEAD_RADIUS, 16, 16);
+        const headMesh = new THREE.Mesh(headGeometry, material);
+        headMesh.position.y = ENEMY_BODY_HEIGHT + ENEMY_HEAD_RADIUS;
+        headMesh.castShadow = true;
+        enemyGroup.add(headMesh);
+
+        const armGeometry = new THREE.CylinderGeometry(0.1, 0.1, ENEMY_ARM_LENGTH, 8);
+        const leftArm = new THREE.Mesh(armGeometry, material);
+        leftArm.position.set(-(ENEMY_SIZE * 0.3 + 0.1), ENEMY_BODY_HEIGHT * 0.7, 0);
+        leftArm.rotation.z = Math.PI / 4;
+        leftArm.castShadow = true;
+        enemyGroup.add(leftArm);
+
+        const rightArm = new THREE.Mesh(armGeometry, material);
+        rightArm.position.set((ENEMY_SIZE * 0.3 + 0.1), ENEMY_BODY_HEIGHT * 0.7, 0);
+        rightArm.rotation.z = -Math.PI / 4;
+        rightArm.castShadow = true;
+        enemyGroup.add(rightArm);
+
+        const legGeometry = new THREE.CylinderGeometry(0.1, 0.1, ENEMY_LEG_LENGTH, 8);
+        const leftLeg = new THREE.Mesh(legGeometry, material);
+        leftLeg.position.set(-(ENEMY_SIZE * 0.2), ENEMY_LEG_LENGTH / 2, 0);
+        leftLeg.castShadow = true;
+        enemyGroup.add(leftLeg);
+
+        const rightLeg = new THREE.Mesh(legGeometry, material);
+        rightLeg.position.set((ENEMY_SIZE * 0.2), ENEMY_LEG_LENGTH / 2, 0);
+        rightLeg.castShadow = true;
+        enemyGroup.add(rightLeg);
+
+        enemyGroup.position.y = ENEMY_LEG_LENGTH / 2;
+        enemyGroup.receiveShadow = true;
+
+        // Add health bar to enemy
+        const healthBarWidth = 1.2;
+        const healthBarHeight = 0.15;
+
+        const healthBarBackgroundGeometry = new THREE.PlaneGeometry(healthBarWidth, healthBarHeight);
+        const healthBarBackgroundMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
+        const healthBarBackground = new THREE.Mesh(healthBarBackgroundGeometry, healthBarBackgroundMaterial);
+        healthBarBackground.position.y = ENEMY_BODY_HEIGHT + ENEMY_HEAD_RADIUS + 0.3;
+        enemyGroup.add(healthBarBackground);
+        enemyGroup.userData.healthBarBackground = healthBarBackground;
+
+        const healthBarForegroundGeometry = new THREE.PlaneGeometry(healthBarWidth * 0.9, healthBarHeight * 0.8);
+        const healthBarForegroundMaterial = new THREE.MeshBasicMaterial({ color: 0x00FF00, side: THREE.DoubleSide });
+        const healthBarForeground = new THREE.Mesh(healthBarForegroundGeometry, healthBarForegroundMaterial);
+        healthBarForeground.position.y = ENEMY_BODY_HEIGHT + ENEMY_HEAD_RADIUS + 0.3;
+        healthBarForeground.position.z = 0.01;
+        enemyGroup.add(healthBarForeground);
+        enemyGroup.userData.healthBar = healthBarForeground;
+
+        enemyGroup.userData.maxHealth = ENEMY_MAX_HEALTH;
+        enemyGroup.userData.currentHealth = ENEMY_MAX_HEALTH;
+
+        return enemyGroup;
+    };
+
+    const addSkybox = () => {
+        const path = "https://threejs.org/examples/textures/cube/Bridge2/";
+        const urls = [
+            path + "posx.jpg", path + "negx.jpg",
+            path + "posy.jpg", path + "negy.jpg",
+            path + "posz.jpg", path + "negz.jpg"
+        ];
+
+        const cubeTextureLoader = new THREE.CubeTextureLoader();
+        cubeTextureLoader.load(urls, (texture) => {
+            scene.background = texture;
+        }, undefined, (error) => {
+            console.error("Error loading skybox textures:", error);
+            scene.background = new THREE.Color(0x333333);
+        });
+    };
+
+    const initializeGameElements = () => {
+        bullets.forEach(b => scene.remove(b.mesh));
+        enemies.forEach(e => scene.remove(e.mesh));
+
+        bullets = [];
+        enemies = [];
+        scoreRef.current = 0;
+        playerHealthRef.current = PLAYER_MAX_HEALTH;
+        setScore(0);
+        setPlayerHealth(PLAYER_MAX_HEALTH);
+        lastEnemySpawnTime = Date.now();
+
+        playerYawObject.position.set(0, 0, 5);
+        playerYawObject.rotation.y = 0;
+        camera.rotation.x = 0;
+        
+        addEnvironmentAssets();
+        addSkybox();
+    };
+
+    const startGame = () => {
+        if (gameRunningRef.current && !gameOverRef.current) return;
+        
+        initializeGameElements();
+        gameOverRef.current = false;
+        gameRunningRef.current = true;
+
+        animate();
+    };
+
+    const updatePlayer = (deltaTime) => {
+        const moveSpeed = PLAYER_BASE_SPEED * deltaTime;
+
+        let playerCurrentBox = new THREE.Box3().setFromObject(playerCapsule);
+
+        for (const obstacle of obstacles) {
+            const obstacleBox = new THREE.Box3().setFromObject(obstacle);
+
+            if (playerCurrentBox.intersectsBox(obstacleBox)) {
+                const playerMin = playerCurrentBox.min;
+                const playerMax = playerCurrentBox.max;
+                const obstacleMin = obstacleBox.min;
+                const obstacleMax = obstacleBox.max;
+
+                const overlapX = Math.min(playerMax.x, obstacleMax.x) - Math.max(playerMin.x, obstacleMin.x);
+                const overlapZ = Math.min(playerMax.z, obstacleMax.z) - Math.max(playerMin.z, obstacleMin.z);
+
+                if (overlapX < overlapZ) {
+                    if (playerMin.x < obstacleMin.x) {
+                        playerYawObject.position.x -= (overlapX + EPSILON);
+                    } else {
+                        playerYawObject.position.x += (overlapX + EPSILON);
+                    }
+                } else {
+                    if (playerMin.z < obstacleMin.z) {
+                        playerYawObject.position.z -= (overlapZ + EPSILON);
+                    } else {
+                        playerYawObject.position.z += (overlapZ + EPSILON);
+                    }
+                }
+                playerCurrentBox.setFromObject(playerCapsule);
+            }
+        }
+
+        const originalX = playerYawObject.position.x;
+        const originalZ = playerYawObject.position.z;
+
+        const forwardVector = new THREE.Vector3(0, 0, -1).applyQuaternion(playerYawObject.quaternion);
+        forwardVector.y = 0;
+        forwardVector.normalize();
+
+        const rightVector = new THREE.Vector3(1, 0, 0).applyQuaternion(playerYawObject.quaternion);
+        rightVector.y = 0;
+        rightVector.normalize();
+
+        let movementVector = new THREE.Vector3();
+
+        if (keys['ArrowUp'] || keys['w'] || touchMoveForward) {
+            movementVector.add(forwardVector);
+        }
+        if (keys['ArrowDown'] || keys['s'] || touchMoveBackward) {
+            movementVector.sub(forwardVector);
+        }
+        if (keys['ArrowLeft'] || keys['a'] || touchMoveLeft) {
+            movementVector.sub(rightVector);
+        }
+        if (keys['ArrowRight'] || keys['d'] || touchMoveRight) {
+            movementVector.add(rightVector);
+        }
+
+        if (movementVector.lengthSq() > 0) {
+            movementVector.normalize();
+            movementVector.multiplyScalar(moveSpeed);
+        }
+
+        playerYawObject.position.x += movementVector.x;
+        let playerBoxAfterXMove = new THREE.Box3().setFromObject(playerCapsule);
+        for (const obstacle of obstacles) {
+            const obstacleBox = new THREE.Box3().setFromObject(obstacle);
+            if (playerBoxAfterXMove.intersectsBox(obstacleBox)) {
+                playerYawObject.position.x = originalX;
+                break;
+            }
+        }
+
+        playerYawObject.position.z += movementVector.z;
+        let playerBoxAfterZMove = new THREE.Box3().setFromObject(playerCapsule); 
+        for (const obstacle of obstacles) {
+            const obstacleBox = new THREE.Box3().setFromObject(obstacle);
+            if (playerBoxAfterZMove.intersectsBox(obstacleBox)) {
+                playerYawObject.position.z = originalZ;
+                break;
+            }
+        }
+
+        playerYawObject.position.y = 0;
+
+        const halfWorldWidth = WORLD_WIDTH / 2 - (playerCapsule.geometry.parameters.width / 2);
+        const halfWorldDepth = WORLD_DEPTH / 2 - (playerCapsule.geometry.parameters.depth / 2);
+
+
+        if (playerYawObject.position.x < -halfWorldWidth) playerYawObject.position.x = -halfWorldWidth;
+        if (playerYawObject.position.x > halfWorldWidth) playerYawObject.position.x = halfWorldWidth;
+        if (playerYawObject.position.z > halfWorldDepth) playerYawObject.position.z = halfWorldDepth;
+        if (playerYawObject.position.z < -halfWorldDepth) playerYawObject.position.z = -halfWorldDepth;
+    };
+
+    const updateBullets = (deltaTime) => {
+        for (let i = bullets.length - 1; i >= 0; i--) {
+            const bullet = bullets[i];
+            bullet.mesh.position.add(bullet.direction.clone().multiplyScalar(BULLET_SPEED * deltaTime));
+
+            if (
+                bullet.mesh.position.z < -WORLD_DEPTH / 2 - 2 ||
+                bullet.mesh.position.z > WORLD_DEPTH / 2 + 2 ||
+                bullet.mesh.position.x < -WORLD_WIDTH / 2 - 2 ||
+                bullet.mesh.position.x > WORLD_WIDTH / 2 + 2
+            ) {
+                scene.remove(bullet.mesh);
+                bullets.splice(i, 1);
+            }
+        }
+    };
+
+    const spawnEnemy = () => {
+        const now = Date.now();
+        if (now - lastEnemySpawnTime > ENEMY_SPAWN_INTERVAL) {
+            const x = (Math.random() * (WORLD_WIDTH - ENEMY_SIZE)) - (WORLD_WIDTH / 2 - ENEMY_SIZE / 2);
+            const z = -(WORLD_DEPTH / 2) - ENEMY_SIZE - (Math.random() * 5); 
+            const speed = ENEMY_SPEED_MIN + Math.random() * (ENEMY_SPEED_MAX - ENEMY_SPEED_MIN);
+
+            const enemyMesh = createEnemyMesh();
+            enemyMesh.position.set(x, 0, z);
+            scene.add(enemyMesh);
+
+            const newEnemy = { mesh: enemyMesh, speed: speed, id: Date.now() + Math.random() };
+            enemies.push(newEnemy);
+            lastEnemySpawnTime = now;
+        }
+    };
+
+    const updateEnemies = (deltaTime) => {
+        for (let i = enemies.length - 1; i >= 0; i--) {
+            const enemy = enemies[i];
+
+            const directionToPlayer = new THREE.Vector3().subVectors(playerYawObject.position, enemy.mesh.position).normalize();
+            enemy.mesh.position.add(directionToPlayer.multiplyScalar(enemy.speed * deltaTime));
+
+            enemy.mesh.lookAt(playerYawObject.position.x, enemy.mesh.position.y, playerYawObject.position.z);
+            enemy.mesh.rotation.x = 0;
+            enemy.mesh.rotation.z = 0;
+
+            if (enemy.mesh.userData.healthBar && camera) {
+                enemy.mesh.userData.healthBar.quaternion.copy(camera.quaternion);
+                enemy.mesh.userData.healthBarBackground.quaternion.copy(camera.quaternion);
+            }
+
+            const playerCollisionBox = new THREE.Box3().setFromObject(playerCapsule);
+            const enemyBox = new THREE.Box3().setFromObject(enemy.mesh);
+
+            if (playerCollisionBox.intersectsBox(enemyBox)) {
+                playerHealthRef.current -= ENEMY_COLLISION_DAMAGE;
+                setPlayerHealth(playerHealthRef.current);
+                playSound(playerHitSynth, "C3", "8n");
+                if (playerHealthRef.current <= 0) {
+                    endGame(t('enemyCollisionGameOver', language));
+                } else {
+                    scene.remove(enemy.mesh);
+                    enemies.splice(i, 1);
+                }
+                continue;
+            }
+
+            if (enemy.mesh.position.z > playerYawObject.position.z + 5) {
+                scene.remove(enemy.mesh);
+                enemies.splice(i, 1);
+            }
+        }
+    };
+
+    const checkCollisions = () => {
+        for (let i = bullets.length - 1; i >= 0; i--) {
+            const bullet = bullets[i];
+            const bulletBox = new THREE.Box3().setFromObject(bullet.mesh);
+
+            for (let j = enemies.length - 1; j >= 0; j--) {
+                const enemy = enemies[j];
+                const enemyBox = new THREE.Box3().setFromObject(enemy.mesh);
+
+                if (bulletBox.intersectsBox(enemyBox)) {
+                    playSound(enemyExplodeSynth, "8n");
+                    scene.remove(bullet.mesh);
+                    bullets.splice(i, 1);
+
+                    enemy.mesh.userData.currentHealth -= bullet.damage;
+                    const healthRatio = enemy.mesh.userData.currentHealth / enemy.mesh.userData.maxHealth;
+
+                    enemy.mesh.userData.healthBar.scale.x = healthRatio;
+                    enemy.mesh.userData.healthBar.position.x = (enemy.mesh.userData.healthBar.geometry.parameters.width / 2) * (healthRatio - 1);
+
+                    if (healthRatio > 0.5) {
+                        enemy.mesh.userData.healthBar.material.color.setHex(0x00FF00);
+                    } else if (healthRatio > 0.2) {
+                        enemy.mesh.userData.healthBar.material.color.setHex(0xFFFF00);
+                    } else {
+                        enemy.mesh.userData.healthBar.material.color.setHex(0xFF0000);
+                    }
+
+                    if (enemy.mesh.userData.currentHealth <= 0) {
+                        scene.remove(enemy.mesh);
+                        enemies.splice(j, 1);
+                        scoreRef.current += 10;
+                        setScore(scoreRef.current);
+                    }
+                    break;
+                }
+            }
+        }
+    };
+
+    const endGame = (message) => {
+        gameOverRef.current = true;
+        gameRunningRef.current = false;
+        setScreen('gameOver');
+    };
+
+    const animate = (currentTime) => {
+        if (!lastFrameTime) {
+            lastFrameTime = currentTime;
+        }
+        const deltaTime = (currentTime - lastFrameTime) / 1000;
+        lastFrameTime = currentTime;
+
+        if (gameOverRef.current || isPaused) {
+            requestAnimationFrame(animate);
+            return;
+        }
+
+        updatePlayer(deltaTime);
+        updateBullets(deltaTime);
+        spawnEnemy();
+        updateEnemies(deltaTime);
+        checkCollisions();
+
+        renderer.render(scene, camera);
+        requestAnimationFrame(animate);
+    };
+
+    const requestPointerLock = () => {
+        const canvas = mountRef.current;
+        if (canvas.requestPointerLock) {
+            canvas.requestPointerLock().then(() => {
+            }).catch((e) => {
+                console.error("Pointer lock failed or exited:", e);
+            });
+        }
+    };
+
+    const exitPointerLock = () => {
+        if (document.pointerLockElement) {
+            document.exitPointerLock();
+        }
+    };
+
+    const resizeRenderer = () => {
+        if (renderer && camera) {
+            const width = mountRef.current.clientWidth;
+            const height = mountRef.current.clientHeight;
+            renderer.setSize(width, height);
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+        }
+    };
+
+    const updateCameraFOV = (zoomed) => {
+        if (camera) {
+            camera.fov = zoomed ? ZOOM_FOV : ORIGINAL_FOV;
+            camera.updateProjectionMatrix();
+        }
+    };
+
+    const handleOverlayClick = async () => {
+        if (Tone.context.state !== 'running') {
+            try {
+                await Tone.start();
+                console.log("Audio context started successfully!");
+            } catch (e) {
+                console.error("Failed to start audio context:", e);
+            }
+        }
+        requestPointerLock();
+        setShowOverlay(false);
+    };
+
+    const handleMenuButtonClick = () => {
+        exitPointerLock();
+        setIsPaused(true);
+        setScreen('pauseMenu');
+    };
+
+    // Effect to update Tone.js volume when gameVolume changes
+    useEffect(() => {
+        // Map 0-100 to -60dB (very quiet) to 0dB (max volume)
+        const dbVolume = gameVolume === 0 ? -Infinity : (gameVolume / 100) * 60 - 60;
+        Tone.Destination.volume.value = dbVolume;
+    }, [gameVolume]);
+
+
+    useEffect(() => {
+        if (!mountRef.current) return;
+
+        initThreeJS();
+
+        startGame();
+        
+        const handleKeyDown = (e) => { 
+            keys[e.key] = true; 
+            if (e.key === 'Escape') {
+                if (gameRunningRef.current && !gameOverRef.current && !isPaused) {
+                    handleMenuButtonClick();
+                }
+            }
+        };
+        const handleKeyUp = (e) => { 
+            keys[e.key] = false; 
+        };
+        
+        const handleCanvasClick = () => {
+            if (!gameOverRef.current && gameRunningRef.current && !isPointerLocked && !isPaused) {
+                requestPointerLock();
+            }
+        };
+
+        const handleMouseDown = (event) => {
+            if (isPointerLocked && !gameOverRef.current && !isPaused) {
+                if (event.button === 0) {
+                    isMouseDown = true;
+                    shootBullet();
+                } else if (event.button === 2) {
+                    event.preventDefault();
+                    setIsZoomed(true);
+                    updateCameraFOV(true);
+                }
+            }
+        };
+        const handleMouseUp = (event) => {
+            if (event.button === 0) {
+                isMouseDown = false;
+            } else if (event.button === 2) {
+                setIsZoomed(false);
+                updateCameraFOV(false);
+            }
+        };
+        const handleMouseMove = (event) => {
+            if (isPointerLocked) {
+                const movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
+                const movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
+
+                playerYawObject.rotation.y -= movementX * sensitivity; // Menggunakan sensitivitas dari konteks
+                camera.rotation.x -= movementY * sensitivity; // Menggunakan sensitivitas dari konteks
+                camera.rotation.x = Math.max(-pitchLimit, Math.min(pitchLimit, camera.rotation.x));
+            }
+        };
+        const handlePointerLockChange = () => {
+            isPointerLocked = document.pointerLockElement === mountRef.current || document.mozPointerLockElement === mountRef.current || document.webkitPointerLockElement === mountRef.current;
+            if (!isPointerLocked) {
+                isMouseDown = false;
+                setIsZoomed(false);
+                updateCameraFOV(false);
+            }
+        };
+
+        const handleTouchStart = (e) => {
+            if (e.touches.length === 1 && !gameOverRef.current && gameRunningRef.current && e.target === mountRef.current && !isPaused) {
+                isTouchDragging = true;
+                previousTouchX = e.touches[0].clientX;
+                previousTouchY = e.touches[0].clientY;
+            }
+        };
+        const handleTouchMove = (e) => {
+            if (isTouchDragging && e.touches.length === 1 && e.target === mountRef.current) {
+                e.preventDefault();
+                const currentTouchX = e.touches[0].clientX;
+                const currentTouchY = e.touches[0].clientY;
+
+                const deltaX = currentTouchX - previousTouchX;
+                const deltaY = currentTouchY - previousTouchY;
+
+                if (Math.abs(deltaX) > touchDragThreshold || Math.abs(deltaY) > touchDragThreshold) {
+                    playerYawObject.rotation.y -= deltaX * touchSensitivity;
+                    camera.rotation.x -= deltaY * touchSensitivity;
+                    camera.rotation.x = Math.max(-pitchLimit, Math.min(pitchLimit, camera.rotation.x));
+                }
+
+                previousTouchX = currentTouchX;
+                previousTouchY = currentTouchY;
+            }
+        };
+        const handleTouchEnd = () => { isTouchDragging = false; };
+        const handleTouchCancel = () => { isTouchDragging = false; };
+
+        const shootBullet = () => {
+            const bulletMaterial = new THREE.MeshPhongMaterial({ color: BULLET_COLOR });
+            const bulletMesh = new THREE.Mesh(BULLET_GEOMETRY, bulletMaterial);
+
+            const bulletSpawnPoint = new THREE.Vector3();
+            camera.getWorldPosition(bulletSpawnPoint);
+            
+            const bulletDirection = new THREE.Vector3();
+            camera.getWorldDirection(bulletDirection);
+            bulletDirection.normalize();
+
+            bulletMesh.position.copy(bulletSpawnPoint);
+            
+            const tempQuaternion = new THREE.Quaternion();
+            tempQuaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), bulletDirection);
+            bulletMesh.setRotationFromQuaternion(tempQuaternion);
+
+            const currentBulletDamage = isZoomed ? ZOOMED_BULLET_DAMAGE : BULLET_DAMAGE;
+
+            scene.add(bulletMesh);
+            bullets.push({ mesh: bulletMesh, direction: bulletDirection, damage: currentBulletDamage });
+            playSound(playerShootSynth, "C4", "16n");
+        };
+
+        const handleLeftButtonStart = () => { touchMoveLeft = true; };
+        const handleLeftButtonEnd = () => { touchMoveLeft = false; };
+        const handleRightButtonStart = () => { touchMoveRight = true; };
+        const handleRightButtonEnd = () => { touchMoveRight = false; };
+        const handleForwardButtonStart = () => { touchMoveForward = true; };
+        const handleForwardButtonEnd = () => { touchMoveForward = false; };
+        const handleBackwardButtonStart = () => { touchMoveBackward = true; };
+        const handleBackwardButtonEnd = () => { touchMoveBackward = false; };
+        const handleShootButtonStart = (e) => { e.preventDefault(); if (!gameOverRef.current && !isPaused) shootBullet(); };
+
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        mountRef.current.addEventListener('click', handleCanvasClick);
+        document.addEventListener('mousedown', handleMouseDown);
+        document.addEventListener('mouseup', handleMouseUp);
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('pointerlockchange', handlePointerLockChange, false);
+        document.addEventListener('mozpointerlockchange', handlePointerLockChange, false);
+        document.addEventListener('webkitpointerlockchange', handlePointerLockChange, false);
+        mountRef.current.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        mountRef.current.addEventListener('touchstart', handleTouchStart, { passive: false });
+        mountRef.current.addEventListener('touchmove', handleTouchMove, { passive: false });
+        mountRef.current.addEventListener('touchend', handleTouchEnd);
+        mountRef.current.addEventListener('touchcancel', handleTouchCancel);
+
+        const leftButton = document.getElementById('leftButton');
+        if (leftButton) leftButton.addEventListener('touchstart', handleLeftButtonStart, { passive: true });
+        if (leftButton) leftButton.addEventListener('touchend', handleLeftButtonEnd);
+        if (leftButton) leftButton.addEventListener('touchcancel', handleLeftButtonEnd);
+
+        const rightButton = document.getElementById('rightButton');
+        if (rightButton) rightButton.addEventListener('touchstart', handleRightButtonStart, { passive: true });
+        if (rightButton) rightButton.addEventListener('touchend', handleRightButtonEnd);
+        if (rightButton) rightButton.addEventListener('touchcancel', handleRightButtonEnd);
+
+        const forwardButton = document.getElementById('forwardButton');
+        if (forwardButton) forwardButton.addEventListener('touchstart', handleForwardButtonStart, { passive: true });
+        if (forwardButton) forwardButton.addEventListener('touchend', handleForwardButtonEnd);
+        if (forwardButton) forwardButton.addEventListener('touchcancel', handleForwardButtonEnd);
+
+        const backwardButton = document.getElementById('backwardButton');
+        if (backwardButton) backwardButton.addEventListener('touchstart', handleBackwardButtonStart, { passive: true });
+        if (backwardButton) backwardButton.addEventListener('touchend', handleBackwardButtonEnd);
+        if (backwardButton) backwardButton.addEventListener('touchcancel', handleBackwardButtonEnd);
+
+        const shootButton = document.getElementById('shootButton');
+        if (shootButton) shootButton.addEventListener('touchstart', handleShootButtonStart, { passive: false });
+
+
+        return () => {
+            cancelAnimationFrame(animate);
+            if (renderer) {
+                renderer.dispose();
+            }
+            if (scene) {
+                scene.traverse(object => {
+                    if (!object.isMesh) return;
+                    object.geometry.dispose();
+                    if (object.material.isMaterial) {
+                        object.material.dispose();
+                    } else if (Array.isArray(object.material)) {
+                        for (const material of object.material) material.dispose();
+                    }
+                });
+            }
+
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+            mountRef.current?.removeEventListener('click', handleCanvasClick);
+            document.removeEventListener('mousedown', handleMouseDown);
+            document.removeEventListener('mouseup', handleMouseUp);
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('pointerlockchange', handlePointerLockChange, false);
+            document.removeEventListener('mozpointerlockchange', handlePointerLockChange, false);
+            document.removeEventListener('webkitpointerlockchange', handlePointerLockChange, false);
+            mountRef.current?.removeEventListener('contextmenu', (e) => e.preventDefault());
+            mountRef.current?.removeEventListener('touchstart', handleTouchStart);
+            mountRef.current?.removeEventListener('touchmove', handleTouchMove);
+            mountRef.current?.removeEventListener('touchend', handleTouchEnd);
+            mountRef.current?.removeEventListener('touchcancel', handleTouchCancel);
+            
+            if (leftButton) leftButton.removeEventListener('touchstart', handleLeftButtonStart);
+            if (leftButton) leftButton.removeEventListener('touchend', handleLeftButtonEnd);
+            if (leftButton) leftButton.removeEventListener('touchcancel', handleLeftButtonEnd);
+
+            if (rightButton) rightButton.removeEventListener('touchstart', handleRightButtonStart);
+            if (rightButton) rightButton.removeEventListener('touchend', handleRightButtonEnd);
+            if (rightButton) rightButton.removeEventListener('touchcancel', handleRightButtonEnd);
+
+            if (forwardButton) forwardButton.removeEventListener('touchstart', handleForwardButtonStart);
+            if (forwardButton) forwardButton.removeEventListener('touchend', handleForwardButtonEnd);
+            if (forwardButton) forwardButton.removeEventListener('touchcancel', handleForwardButtonEnd);
+
+            if (backwardButton) backwardButton.removeEventListener('touchstart', handleBackwardButtonStart);
+            if (backwardButton) backwardButton.removeEventListener('touchend', handleBackwardButtonEnd);
+            if (backwardButton) backwardButton.removeEventListener('touchcancel', handleBackwardButtonEnd);
+
+            if (shootButton) shootButton.removeEventListener('touchstart', handleShootButtonStart);
+        };
+    }, [sensitivity]); // Re-run effect if sensitivity changes
+
+    if (webglError) {
+        return (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-900 bg-opacity-90 text-white text-center text-2xl font-bold z-50">
+                <p className="mb-4">{t('webglError', language)}</p>
+                <p className="mb-8">{t('browserSupport', language)}</p>
+                <button onClick={() => setScreen('mainMenu')} className="p-3 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded transition-colors duration-200">{t('backToMainMenu', language)}</button>
+            </div>
+        );
+    }
+
+    return (
+        <>
+            <canvas id="gameCanvas3D" ref={mountRef} className="absolute inset-0 w-full h-full"></canvas>
+            {showOverlay && (
+                <div
+                    className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-75 text-white text-2xl font-bold z-50 cursor-pointer"
+                    onClick={handleOverlayClick}
+                >
+                    {t('clickToStart', language)}
+                </div>
+            )}
+            {isZoomed && (
+                <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none">
+                    <div className="absolute inset-0 bg-black opacity-10"></div>
+                    <div className="absolute w-1/2 h-1/2 bg-transparent border-2 border-white rounded-full"></div>
+                    <div className="absolute w-0.5 h-full bg-white"></div>
+                    <div className="absolute h-0.5 w-full bg-white"></div>
+                </div>
+            )}
+            <button
+                onClick={handleMenuButtonClick}
+                className="hidden md:block fixed top-4 left-4 p-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg shadow-lg transition-colors duration-200 z-50"
+                title={t('backToMainMenu', language)}
+            >
+                <i className="fas fa-bars text-xl"></i>
+            </button>
+
+            <div className="mobile-controls fixed bottom-0 left-0 right-0 p-4 flex justify-between gap-2 z-50 md:hidden">
+                <div className="left-right-buttons flex gap-2 flex-grow-0 basis-1/3">
+                    <button id="leftButton" className="rounded-lg p-3 bg-gray-600 text-white text-lg flex-1"><i className="fas fa-arrow-left"></i></button>
+                    <button id="rightButton" className="rounded-lg p-3 bg-gray-600 text-white text-lg flex-1"><i className="fas fa-arrow-right"></i></button>
+                </div>
+                <button id="forwardButton" className="rounded-lg p-3 bg-gray-600 text-white text-lg flex-1"><i className="fas fa-arrow-up"></i></button>
+                <button id="backwardButton" className="rounded-lg p-3 bg-gray-600 text-white text-lg flex-1"><i className="fas fa-arrow-down"></i></button>
+                <button id="shootButton" className="shoot-button rounded-lg p-3 bg-red-600 text-white text-lg flex-1"><i className="fas fa-crosshairs"></i> {t('shootButton', language)}</button>
+            </div>
+        </>
+    );
+};
+
+// --- UI Components ---
+
+// Main Menu Component
+const MainMenu = () => {
+    const { setScreen, language } = useContext(GameContext);
+
+    return (
+        <div className="flex flex-col items-center justify-center p-8 bg-gray-800 bg-opacity-90 rounded-lg shadow-xl text-white max-w-md w-full">
+            <h1 className="text-5xl font-extrabold mb-8 text-cyan-400">{t('mainMenuTitle', language)}</h1>
+            <div className="flex flex-col gap-4 w-full">
+                <button
+                    onClick={() => setScreen('game')}
+                    className="p-4 bg-green-500 hover:bg-green-600 text-white font-bold text-xl rounded-lg transition-colors duration-200 transform hover:scale-105"
+                >
+                    {t('startGameButton', language)}
+                </button>
+                <button
+                    onClick={() => setScreen('characterSelect')}
+                    className="p-4 bg-blue-500 hover:bg-blue-600 text-white font-bold text-xl rounded-lg transition-colors duration-200 transform hover:scale-105"
+                >
+                    {t('characterSelectButton', language)}
+                </button>
+                <button
+                    onClick={() => setScreen('settings')}
+                    className="p-4 bg-yellow-500 hover:bg-yellow-600 text-white font-bold text-xl rounded-lg transition-colors duration-200 transform hover:scale-105"
+                >
+                    {t('settingsButton', language)}
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// Placeholder for Character Select Screen
+const CharacterSelectScreen = () => {
+    const { setScreen, language } = useContext(GameContext);
+    const canvasRef = useRef(null);
+    let scene, camera, renderer, characterModel;
+
+    useEffect(() => {
+        const currentCanvas = canvasRef.current;
+        if (!currentCanvas) return;
+
+        // Ensure canvas dimensions are set for proper rendering
+        const updateCanvasSize = () => {
+            const parent = currentCanvas.parentElement;
+            if (parent) {
+                currentCanvas.width = parent.clientWidth;
+                currentCanvas.height = parent.clientHeight;
+            }
+        };
+        updateCanvasSize(); // Set initial size
+
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(75, currentCanvas.clientWidth / currentCanvas.clientHeight, 0.1, 100);
+        renderer = new THREE.WebGLRenderer({ canvas: currentCanvas, alpha: true, antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(currentCanvas.clientWidth, currentCanvas.clientHeight);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 10, 5);
+        scene.add(directionalLight);
+
+        // Load FBX model
+        const fbxLoader = new FBXLoader();
+        const playerModelPath = 'https://raw.githubusercontent.com/fajrigans/assetgametembak/main/buat_karakter_ninja_b_0531120650_texture_fbx.fbx';
+        fbxLoader.load(playerModelPath, (fbx) => {
+            characterModel = fbx;
+            characterModel.scale.set(0.02, 0.02, 0.02); // Adjust scale for display
+            characterModel.position.y = -1; // Position it to sit on a virtual ground
+            scene.add(characterModel);
+            camera.position.set(0, 0, 3); // Position camera to view the model
+            camera.lookAt(characterModel.position);
+
+            // Animation loop for character rotation
+            const animateCharacter = () => {
+                if (characterModel) {
+                    characterModel.rotation.y += 0.01; // Rotate character
+                }
+                renderer.render(scene, camera);
+                requestAnimationFrame(animateCharacter);
+            };
+            animateCharacter();
+
+        }, undefined, (error) => {
+            console.error("Error loading character model for select screen:", error);
+            // Fallback: Add a simple placeholder if model fails to load
+            const geometry = new THREE.BoxGeometry(1, 2, 1);
+            const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+            characterModel = new THREE.Mesh(geometry, material);
+            scene.add(characterModel);
+            camera.position.set(0, 0, 3);
+            camera.lookAt(characterModel.position);
+            const animateCharacter = () => {
+                if (characterModel) {
+                    characterModel.rotation.y += 0.01;
+                }
+                renderer.render(scene, camera);
+                requestAnimationFrame(animateCharacter);
+            };
+            animateCharacter();
+        });
+
+        const handleResize = () => {
+            updateCanvasSize(); // Update canvas element's width/height attributes
+            if (camera && renderer) {
+                const width = currentCanvas.clientWidth;
+                const height = currentCanvas.clientHeight;
+                renderer.setSize(width, height);
+                camera.aspect = width / height;
+                camera.updateProjectionMatrix();
+            }
+        };
+
+        window.addEventListener('resize', handleResize);
+
+        return () => {
+            window.removeEventListener('resize', handleResize);
+            if (renderer) {
+                renderer.dispose();
+            }
+            if (scene) {
+                scene.traverse(object => {
+                    if (!object.isMesh) return;
+                    object.geometry.dispose();
+                    if (object.material.isMaterial) {
+                        object.material.dispose();
+                    } else if (Array.isArray(object.material)) {
+                        for (const material of object.material) material.dispose();
+                    }
+                });
+            }
+        };
+    }, []);
+
+    return (
+        <div className="flex flex-col items-center p-8 bg-gray-800 bg-opacity-90 rounded-lg shadow-xl text-white max-w-lg w-full">
+            <h2 className="text-3xl font-bold mb-6 text-cyan-400">{t('characterSelectButton', language)}</h2>
+            <div className="relative w-full h-64 mb-4 rounded-lg overflow-hidden bg-gray-700">
+                <canvas ref={canvasRef} className="w-full h-full"></canvas>
+                {/* Health Bar Overlay */}
+                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 w-3/4 h-6 bg-gray-900 rounded-full border-2 border-green-500 overflow-hidden">
+                    <div className="h-full bg-green-500 flex items-center justify-center text-xs font-bold text-white" style={{ width: '100%' }}>
+                        {t('healthDisplay', language)} {PLAYER_MAX_HEALTH} / {PLAYER_MAX_HEALTH}
+                    </div>
+                </div>
+            </div>
+            <p className="text-gray-300 mb-6">{t('characterSelectSoon', language)}</p>
+            <button
+                onClick={() => setScreen('mainMenu')}
+                className="p-3 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded transition-colors duration-200"
+            >
+                {t('backToMainMenu', language)}
+            </button>
+        </div>
+    );
+};
+
+// Settings Screen
+const SettingsScreen = () => {
+    const { setScreen, sensitivity, setSensitivity, gameVolume, setGameVolume, language, setLanguage } = useContext(GameContext);
+
+    const handleSensitivityChange = (e) => {
+        setSensitivity(parseFloat(e.target.value));
+    };
+
+    const handleVolumeChange = (e) => {
+        const newVolume = parseFloat(e.target.value);
+        setGameVolume(newVolume);
+        // Map 0-100 to -60 (very quiet) to 0 (max) dB
+        const dbVolume = newVolume === 0 ? -Infinity : (newVolume / 100) * 60 - 60;
+        Tone.Destination.volume.value = dbVolume;
+    };
+
+    return (
+        <div className="flex flex-col items-center p-8 bg-gray-800 bg-opacity-90 rounded-lg shadow-xl text-white max-w-md w-full">
+            <h2 className="text-3xl font-bold mb-6 text-cyan-400">{t('settingsTitle', language)}</h2>
+            <p className="text-gray-300 mb-6">{t('settingsDesc', language)}</p>
+            
+            <div className="w-full mb-4">
+                <label htmlFor="sensitivity" className="block text-lg font-bold mb-2">{t('sensitivityLabel', language)}:</label>
+                <input
+                    type="range"
+                    id="sensitivity"
+                    min="0.0005"
+                    max="0.003"
+                    step="0.0001"
+                    value={sensitivity}
+                    onChange={handleSensitivityChange}
+                    className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                />
+                <span className="text-sm text-gray-400">{sensitivity.toFixed(4)}</span>
+            </div>
+
+            <div className="w-full mb-4">
+                <label htmlFor="volume" className="block text-lg font-bold mb-2">{t('volumeLabel', language)}:</label>
+                <input
+                    type="range"
+                    id="volume"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={gameVolume}
+                    onChange={handleVolumeChange}
+                    className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                />
+                <span className="text-sm text-gray-400">{gameVolume}%</span>
+            </div>
+
+            <div className="w-full mb-6">
+                <label htmlFor="language" className="block text-lg font-bold mb-2">{t('languageLabel', language)}:</label>
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => setLanguage('id')}
+                        className={`p-2 rounded-lg font-bold flex-1 ${language === 'id' ? 'bg-blue-600' : 'bg-blue-500 hover:bg-blue-600'} text-white transition-colors duration-200`}
+                    >
+                        {t('indonesianLang', 'id')}
+                    </button>
+                    <button
+                        onClick={() => setLanguage('en')}
+                        className={`p-2 rounded-lg font-bold flex-1 ${language === 'en' ? 'bg-blue-600' : 'bg-blue-500 hover:bg-blue-600'} text-white transition-colors duration-200`}
+                    >
+                        {t('englishLang', 'en')}
+                    </button>
+                </div>
+            </div>
+
+            <button
+                onClick={() => setScreen('mainMenu')}
+                className="p-3 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded transition-colors duration-200"
+            >
+                {t('backToMainMenu', language)}
+            </button>
+        </div>
+    );
+};
+
+// Pause Menu Component
+const PauseMenu = () => {
+    const { setScreen, setIsPaused, restartGame, language } = useContext(GameContext);
+
+    const handleContinueGame = () => {
+        setIsPaused(false);
+        setScreen('game');
+        document.getElementById('gameCanvas3D')?.requestPointerLock();
+    };
+
+    const handleRestartGame = () => {
+        restartGame();
+    };
+
+    const handleReturnToMainMenu = () => {
+        setIsPaused(false);
+        setScreen('mainMenu');
+        if (document.pointerLockElement) {
+            document.exitPointerLock();
+        }
+    };
+
+    return (
+        <div className="flex flex-col items-center justify-center p-8 bg-gray-800 bg-opacity-90 rounded-lg shadow-xl text-white max-w-md w-full">
+            <h2 className="text-4xl font-bold mb-6 text-yellow-400">{t('gamePausedTitle', language)}</h2>
+            <div className="flex flex-col gap-4 w-full">
+                <button
+                    onClick={handleContinueGame}
+                    className="p-4 bg-green-500 hover:bg-green-600 text-white font-bold text-xl rounded-lg transition-colors duration-200 transform hover:scale-105"
+                >
+                    {t('continueGameButton', language)}
+                </button>
+                <button
+                    onClick={handleRestartGame}
+                    className="p-4 bg-red-500 hover:bg-red-600 text-white font-bold text-xl rounded-lg transition-colors duration-200 transform hover:scale-105"
+                >
+                    {t('restartGameButton', language)}
+                </button>
+                <button
+                    onClick={handleReturnToMainMenu}
+                    className="p-4 bg-gray-600 hover:bg-gray-700 text-white font-bold text-xl rounded-lg transition-colors duration-200 transform hover:scale-105"
+                >
+                    {t('backToMainMenu', language)}
+                </button>
+            </div>
+        </div>
+    );
+};
+
+
+// Game Over Screen Component
+const GameOverScreen = () => {
+    const { restartGame, score, language } = useContext(GameContext);
+
+    return (
+        <div className="flex flex-col items-center justify-center p-8 bg-gray-800 bg-opacity-90 rounded-lg shadow-xl text-white max-w-sm w-full">
+            <h2 className="text-4xl font-bold mb-4 text-red-500">{t('gameOverTitle', language)}</h2>
+            <p className="text-2xl mb-6 text-gray-300">{t('finalScore', language)} {score}</p>
+            <button
+                onClick={restartGame}
+                className="p-3 bg-cyan-500 hover:bg-cyan-600 text-black font-bold rounded transition-colors duration-200 transform hover:scale-105"
+            >
+                {t('restartButton', language)}
+            </button>
+        </div>
+    );
+};
+
+// Error Boundary Component
+class ErrorBoundary extends Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null, errorInfo: null };
+    }
+
+    static getDerivedStateFromError(error) {
+        return { hasError: true, error: error };
+    }
+
+    componentDidCatch(error, errorInfo) {
+        console.error("Uncaught error in component:", error, errorInfo);
+        this.setState({ errorInfo: errorInfo });
+    }
+
+    render() {
+        if (this.state.hasError) {
+            const { language } = this.props;
+
+            return (
+                <div className="flex flex-col items-center justify-center p-8 bg-red-800 bg-opacity-90 rounded-lg shadow-xl text-white max-w-md w-full">
+                    <h2 className="text-4xl font-bold mb-4">{t('uncaughtError', language)}</h2>
+                    <p className="text-lg mb-4">{t('sorrySomethingWentWrong', language)}</p>
+                    <details style={{ whiteSpace: 'pre-wrap', textAlign: 'left', maxWidth: '100%', overflowX: 'auto' }}>
+                        <summary className="cursor-pointer text-blue-300 hover:text-blue-200">{t('errorDetails', language)}</summary>
+                        {this.state.error && String(this.state.error)}
+                        <br />
+                        {this.state.errorInfo && String(this.state.errorInfo.componentStack)}
+                    </details>
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="mt-6 p-3 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded transition-colors duration-200"
+                    >
+                        {t('reloadPage', language)}
+                    </button>
+                </div>
+            );
+        }
+
+        return this.props.children;
+    }
+}
+
+
+// --- Main App Component ---
+const App = () => {
+    const [screen, setScreen] = useState('mainMenu');
+    const [score, setScore] = useState(0);
+    const [playerHealth, setPlayerHealth] = useState(100);
+    const [isPaused, setIsPaused] = useState(false);
+    const [gameKey, setGameKey] = useState(0);
+    const [language, setLanguage] = useState('id'); // Default language
+    const [sensitivity, setSensitivity] = useState(0.0015); // Default mouse sensitivity
+    const [gameVolume, setGameVolume] = useState(50); // Default volume (0-100)
+
+    const restartGame = () => {
+        setScore(0);
+        setPlayerHealth(100);
+        setIsPaused(false);
+        setGameKey(prevKey => prevKey + 1);
+        setScreen('game');
+    };
+
+    // Initialize Tone.js volume on component mount
+    useEffect(() => {
+        const dbVolume = gameVolume === 0 ? -Infinity : (gameVolume / 100) * 60 - 60;
+        Tone.Destination.volume.value = dbVolume; // Set initial volume
+    }, []); // Run once on mount
+
+    const renderScreen = () => {
+        switch (screen) {
+            case 'mainMenu':
+                return <MainMenu />;
+            case 'characterSelect':
+                return <CharacterSelectScreen />;
+            case 'settings':
+                return <SettingsScreen />;
+            case 'pauseMenu':
+                return <PauseMenu />;
+            case 'game':
+                return (
+                    <>
+                        <div className="game-info fixed top-0 left-0 right-0 p-4 flex justify-between z-50 text-white font-bold text-xl">
+                            <div id="score">{t('scoreDisplay', language)} {score}</div>
+                            <div id="playerHealth">{t('healthDisplay', language)} {playerHealth}</div>
+                            <div className="w-40 h-4 bg-gray-700 rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-green-500 transition-all duration-100 ease-out"
+                                    style={{ width: `${(playerHealth / 100) * 100}%` }}
+                                ></div>
+                            </div>
+                        </div>
+                        <div className="crosshair fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-40 w-4 h-4 border-2 border-white rounded-full"></div>
+                        <GameScreen key={gameKey} />
+                    </>
+                );
+            case 'gameOver':
+                return <GameOverScreen />;
+            default:
+                return <div className="text-white">{t('screenError', language)}</div>;
+        }
+    };
+
+    return (
+        <GameContext.Provider value={{
+            screen, setScreen,
+            score, setScore,
+            playerHealth, setPlayerHealth,
+            isPaused, setIsPaused,
+            restartGame,
+            language, setLanguage,
+            sensitivity, setSensitivity,
+            gameVolume, setGameVolume
+        }}>
+            <div className="game-wrapper relative w-screen h-screen flex items-center justify-center bg-gray-900 overflow-hidden">
+                <ErrorBoundary language={language}>
+                    {renderScreen()}
+                </ErrorBoundary>
+            </div>
+        </GameContext.Provider>
+    );
+};
+
+export default App;
