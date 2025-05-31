@@ -100,7 +100,7 @@
             position: absolute;
             top: 1rem;
             left: 1rem;
-            right: 5rem; /* Menyesuaikan untuk tombol menu */
+            right: 220px; /* Menyesuaikan untuk HUD di kanan atas */
             padding: 0 1rem;
             font-size: 1.8rem; /* Ukuran font lebih besar */
             text-shadow: 0 0 8px #0ff, 0 0 12px #0ff; /* Cahaya neon untuk teks */
@@ -264,8 +264,8 @@
         /* Player HUD Bars */
         .player-hud {
             position: absolute;
-            bottom: 1rem;
-            left: 1rem;
+            top: 1rem; /* Changed from bottom */
+            right: 1rem; /* Changed from left */
             z-index: 10;
             display: flex;
             flex-direction: column;
@@ -312,8 +312,8 @@
         @media (max-width: 767px) {
             .player-hud {
                 width: 150px; /* Lebih kecil di mobile */
-                bottom: 0.5rem;
-                left: 0.5rem;
+                top: 0.5rem; /* Changed from bottom */
+                right: 0.5rem; /* Changed from left */
             }
             .health-bar, .shield-bar {
                 height: 20px;
@@ -326,7 +326,7 @@
                 font-size: 1.2rem;
                 top: 0.5rem;
                 left: 0.5rem;
-                right: 0.5rem;
+                right: calc(0.5rem + 150px + 0.5rem); /* Adjusted for mobile HUD width */
             }
         }
 
@@ -431,7 +431,7 @@
 
     <div id="mainMenuScreen" class="menu-screen">
         <h1>fire123-game</h1>
-        <button id="startGameButton">Mulai Game</button>
+        <p id="welcomeMessageText" class="text-xl text-center mb-4 px-4"></p> <button id="startGameButton">Mulai Game</button>
         <button id="characterSelectButton">Pilih Karakter</button>
         <button id="settingsButton">Pengaturan</button>
     </div>
@@ -468,7 +468,6 @@
     <script>
         // Get info elements
         const scoreDisplay = document.getElementById('score');
-        // const livesDisplay = document.getElementById('lives'); // Removed as health/shield are primary
 
         // Get message box elements
         const messageBox = document.getElementById('messageBox');
@@ -477,6 +476,7 @@
 
         // Get main menu elements
         const mainMenuScreen = document.getElementById('mainMenuScreen');
+        const welcomeMessageText = document.getElementById('welcomeMessageText'); // New element for welcome message
         const startGameButton = document.getElementById('startGameButton');
         const characterSelectButton = document.getElementById('characterSelectButton');
         const settingsButton = document.getElementById('settingsButton');
@@ -524,13 +524,18 @@
 
         // Game variables
         let score = 0;
-        let lives = 3; // Kept for consistency, but health/shield are primary damage absorption
         let playerHealth = 100;
         let playerMaxHealth = 100;
         let playerShield = 50;
         let playerMaxShield = 50;
         let gameOver = false;
-        let gameState = 'menu'; // 'menu', 'playing', 'gameOver', 'characterSelect', 'settings'
+        // 'menu': main menu, can be initial or pause state
+        // 'playing': game is active
+        // 'gameOver': game has ended
+        // 'characterSelect': character selection screen
+        // 'settings': settings screen
+        let gameState = 'menu'; 
+        let gameStartedAtLeastOnce = false; // Flag to track if game has been started from main menu
 
         // Timing variables for frame-rate independence
         let lastFrameTime = 0;
@@ -656,12 +661,11 @@
                 'volumeLabel': 'Volume:',
                 'languageLabel': 'Bahasa:',
                 'score': 'Skor:',
-                // 'lives': 'Nyawa:', // Removed from display
                 'health': 'Kesehatan:',
                 'shield': 'Perisai:',
                 'gameOverMessage': 'GAME OVER! Musuh menabrak Anda.',
                 'restartButton': 'Mulai Ulang',
-                'welcomeMessage': "Selamat datang! Klik 'Mulai Game' untuk memulai permainan. Gunakan ESC untuk membuka/menutup menu. Klik di dalam area game untuk mengaktifkan kontrol kamera.",
+                'welcomeMessage': "Selamat datang! Klik 'Mulai Game' untuk memulai permainan. Gunakan ESC atau tombol menu untuk membuka/menutup menu. Klik di dalam area game untuk mengaktifkan kontrol kamera.",
                 'shootButton': 'Tembak',
                 'gamePaused': 'Game Dijeda.'
             },
@@ -679,12 +683,11 @@
                 'volumeLabel': 'Volume:',
                 'languageLabel': 'Language:',
                 'score': 'Score:',
-                // 'lives': 'Lives:', // Removed from display
                 'health': 'Health:',
                 'shield': 'Shield:',
                 'gameOverMessage': 'GAME OVER! Enemy collided with you.',
                 'restartButton': 'Restart',
-                'welcomeMessage': "Welcome! Click 'Start Game' to begin. Use ESC to open/close menu. Click inside the game area to activate camera controls.",
+                'welcomeMessage': "Welcome! Click 'Start Game' to begin. Use ESC or the menu button to open/close the menu. Click inside the game area to activate camera controls.",
                 'shootButton': 'Shoot',
                 'gamePaused': 'Game Paused.'
             }
@@ -770,7 +773,7 @@
             playerYawObject.add(camera); // Make camera a child of playerYawObject
 
             // Load Player Model (FBX)
-            const fbxLoader = new THREE.FBXLoader(); // Perbaikan: Menggunakan THREE.FBXLoader()
+            const fbxLoader = new THREE.FBXLoader();
             const playerModelPath = 'https://raw.githubusercontent.com/fajrigans/assetgametembak/main/buat_karakter_ninja_b_0531120650_texture_fbx.fbx';
             fbxLoader.load(playerModelPath, (fbx) => {
                 playerModel = fbx;
@@ -1009,12 +1012,10 @@
             bullets = [];
             enemies = [];
             score = 0;
-            lives = 3; // Kept for consistency, but health/shield are primary
             playerHealth = playerMaxHealth;
             playerShield = playerMaxShield;
             lastEnemySpawnTime = Date.now();
             updateScoreDisplay();
-            // updateLivesDisplay(); // Removed as health/shield are primary
             updateHealthShieldDisplay(); // Update new health/shield display
 
             playerYawObject.position.set(0, 0, 5);
@@ -1025,24 +1026,21 @@
             addSkybox();
         }
 
-        // Fungsi untuk memulai permainan
+        // Fungsi untuk memulai permainan (dari awal)
         function startGame() {
-            if (gameState === 'playing') return; // Prevent starting if already playing
-            
             console.log("startGame called");
             initializeGameElements();
             gameOver = false;
             gameState = 'playing';
+            gameStartedAtLeastOnce = true; // Set flag when game is started
 
             hideAllScreens();
+            // Show HUD and menu button when game starts
+            playerHud.style.display = 'flex';
+            menuToggleButton.style.display = 'block';
             Tone.start();
             
-            // Request pointer lock only when game starts
             requestPointerLock();
-
-            // The animate loop is always running, but game logic is gated by gameState
-            // No need to call animate() here, it's already called once on window.onload
-            // and continues to requestAnimationFrame.
             console.log("Game Started!");
         }
 
@@ -1299,6 +1297,7 @@
         }
 
         // --- Game Over / Message Box ---
+        // This message box is now only for Game Over messages.
         function showMessageBox(message) {
             messageText.textContent = message;
             messageText.dataset.originalMessage = message; // Store original message for language changes
@@ -1309,10 +1308,7 @@
 
         function hideMessageBox() {
             messageBox.style.display = 'none';
-            if (gameState === 'playing') {
-                playerHud.style.display = 'flex'; // Show HUD only during gameplay
-                menuToggleButton.style.display = 'block'; // Show menu button
-            }
+            // HUD and menu button visibility is now managed by hideAllScreens and then explicitly shown when gameState is 'playing'.
         }
 
         function endGame(message) {
@@ -1320,7 +1316,6 @@
             gameOver = true;
             gameState = 'gameOver';
             showMessageBox(message);
-            // Unlock pointer if locked
             if (document.pointerLockElement) {
                 document.exitPointerLock();
             }
@@ -1355,7 +1350,7 @@
             mainMenuScreen.style.display = 'none';
             characterSelectScreen.style.display = 'none';
             settingsScreen.style.display = 'none';
-            messageBox.style.display = 'none';
+            messageBox.style.display = 'none'; // Always hide message box when changing screens
             playerHud.style.display = 'none'; // Hide HUD by default
             menuToggleButton.style.display = 'none'; // Hide menu button by default
         }
@@ -1364,10 +1359,11 @@
             hideAllScreens();
             mainMenuScreen.style.display = 'flex';
             gameState = 'menu';
-            // Unlock pointer if locked when returning to menu
             if (document.pointerLockElement) {
                 document.exitPointerLock();
             }
+            // Ensure welcome message is displayed on the main menu screen
+            welcomeMessageText.textContent = translations[currentLanguage].welcomeMessage;
         }
 
         function showCharacterSelection() {
@@ -1387,18 +1383,23 @@
         // --- Event Listeners ---
         window.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
-                e.preventDefault(); // Prevent browser default actions for Esc
-                if (gameState === 'playing' || gameState === 'gameOver') {
+                e.preventDefault();
+                if (gameState === 'playing') {
                     // Pause game and show main menu
                     if (document.pointerLockElement) {
-                        document.exitPointerLock();
+                        document.exitPointerLock(); // This will trigger pointerlockchange and set gameState to 'menu'
+                    } else {
+                        // Fallback if pointer lock somehow wasn't active
+                        gameState = 'menu'; // Set to menu state directly
+                        showMainMenu(); // Show main menu
                     }
+                } else if (gameState === 'menu' && gameStartedAtLeastOnce && !gameOver) {
+                    // If in main menu (as a pause) and game has been started, resume game
+                    startGame(); // This will effectively resume by resetting and starting fresh.
+                                 // This fulfills "mulai ulang" (restart) when "dijeda" (paused).
+                } else if (gameState === 'characterSelect' || gameState === 'settings' || gameState === 'gameOver') {
+                    // From sub-menu or game over, go to main menu
                     showMainMenu();
-                } else if (gameState === 'characterSelect' || gameState === 'settings') {
-                    // If in a sub-menu, go back to main menu
-                    showMainMenu();
-                } else if (gameState === 'menu') { // If in main menu, resume game
-                    startGame(); // This will hide menus and request pointer lock
                 }
             } else if (gameState === 'playing') { // Only process other keys if playing
                 keys[e.key] = true;
@@ -1429,22 +1430,21 @@
             isPointerLocked = document.pointerLockElement === canvas3D || document.mozPointerLockElement === canvas3D || document.webkitPointerLockElement === canvas3D;
             if (isPointerLocked) {
                 console.log('Pointer locked');
-                // Ensure game continues animating if it was playing and pointer lock is re-acquired
-                if (gameState === 'playing' && !gameOver) {
-                    // No need to call animate() here, it's always running.
-                    // Just ensure game logic resumes if it was paused due to pointer unlock.
+                // If pointer lock is acquired, and we were in the menu (as a pause), transition to playing.
+                if (gameState === 'menu' && gameStartedAtLeastOnce && !gameOver) { // If we were in menu as a pause
+                    gameState = 'playing';
+                    playerHud.style.display = 'flex';
+                    menuToggleButton.style.display = 'block';
                 }
             } else {
                 console.log('Pointer unlocked');
                 isMouseDown = false;
-                isZoomed = false; // Reset zoom on pointer unlock
+                isZoomed = false;
                 updateCameraFOV(false);
-                // If game was playing and pointer is unlocked, it means user exited pointer lock
-                // We should show the main menu or a pause screen.
+                // If pointer is unlocked and game was playing (not game over), it means user exited pointer lock
                 if (gameState === 'playing' && !gameOver) {
-                    showMessageBox(translations[currentLanguage].gamePaused);
-                    // Do not change gameState to 'menu' here, as showMessageBox handles it.
-                    // The main menu or pause screen should be shown.
+                    gameState = 'menu'; // Transition to menu state (as pause menu)
+                    showMainMenu(); // Show main menu
                 }
             }
         }, false);
@@ -1585,24 +1585,28 @@
             }
         }, { passive: false });
 
-        restartButton.addEventListener('click', startGame);
+        restartButton.addEventListener('click', startGame); // This button is only in messageBox (Game Over), always restarts.
 
         // Menu button listeners
-        startGameButton.addEventListener('click', startGame);
+        startGameButton.addEventListener('click', startGame); // This button is in Main Menu, always restarts.
         characterSelectButton.addEventListener('click', showCharacterSelection);
         settingsButton.addEventListener('click', showSettings);
         backToMainMenuFromCharacterButton.addEventListener('click', showMainMenu);
         backToMainMenuFromSettingsButton.addEventListener('click', showMainMenu);
+
         menuToggleButton.addEventListener('click', () => {
             if (gameState === 'playing') {
                 // Pause game and show main menu
                 if (document.pointerLockElement) {
-                    document.exitPointerLock();
+                    document.exitPointerLock(); // This will trigger pointerlockchange and set gameState to 'menu'
+                } else {
+                    // Fallback if pointer lock somehow wasn't active
+                    gameState = 'menu'; // Set to menu state directly
+                    showMainMenu(); // Show main menu
                 }
-                showMainMenu();
-            } else if (gameState === 'menu') {
-                // Resume game from main menu
-                startGame();
+            } else if (gameState === 'menu' && gameStartedAtLeastOnce && !gameOver) {
+                // If in main menu (as a pause) and game has been started, resume game
+                startGame(); // This will effectively resume by resetting and starting fresh.
             }
         });
 
@@ -1647,6 +1651,7 @@
 
             // Update main menu
             document.getElementById('mainMenuScreen').querySelector('h1').textContent = t.gameTitle;
+            welcomeMessageText.textContent = t.welcomeMessage; // Set welcome message
             startGameButton.textContent = t.startGame;
             characterSelectButton.textContent = t.characterSelect;
             settingsButton.textContent = t.settings;
@@ -1669,26 +1674,13 @@
             healthLabel.textContent = `${t.health} ${Math.max(0, Math.floor(playerHealth))}`;
             shieldLabel.textContent = `${t.shield} ${Math.max(0, Math.floor(playerShield))}`;
 
-            // Update message box
+            // Update message box (only for Game Over)
             restartButton.textContent = t.restartButton;
-            // If message box is visible, re-set its text with the translated original message
             if (messageBox.style.display === 'block' && messageText.dataset.originalMessage) {
-                // If the message is the game over message, translate it.
-                // Otherwise, it might be a specific message that doesn't need translation.
-                if (messageText.dataset.originalMessage.includes("GAME OVER!")) { // Check for original English or Indonesian game over message
+                if (messageText.dataset.originalMessage.includes("GAME OVER!")) {
                     messageText.textContent = t.gameOverMessage;
-                } else if (messageText.dataset.originalMessage.includes("Game Paused.")) { // Check for original English or Indonesian game paused message
-                    messageText.textContent = t.gamePaused;
-                } else {
-                    // For the initial welcome message, set it directly
-                    messageText.textContent = t.welcomeMessage;
                 }
-            } else if (gameState === 'menu') {
-                 // For the initial welcome message when menu is shown
-                 messageText.dataset.originalMessage = t.welcomeMessage;
-                 messageText.textContent = t.welcomeMessage; // Ensure it's set on initial load
             }
-
 
             // Update mobile shoot button
             shootButton.innerHTML = `<i class="fas fa-crosshairs"></i> ${t.shootButton}`;
