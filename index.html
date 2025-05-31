@@ -44,11 +44,12 @@
     <meta property="twitter:title" content="fire123-game: Game Tembak-tembakan FPS Web 3D" />
     <meta property="twitter:description" content="Mainkan Fire123, game tembak-tembakan FPS sederhana berbasis web dengan grafis 3D dan kontrol responsif. Targetkan musuh dan raih skor tertinggi!" />
     <meta property="twitter:image" content="https://placehold.co/1200x630/000/FFF?text=Fire123%20Game%20Preview" /> 
-    <meta property="twitter:creator" content="@yourtwitterhandle" /> <script src="https://cdn.tailwindcss.com"></script>
+    <meta property="twitter:creator" content="@yourtwitterhandle" /> 
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://threejs.org/examples/js/loaders/FBXLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
@@ -218,6 +219,115 @@
             left: 50%;
             transform: translate(-50%, -50%);
         }
+
+        /* Main Menu Styles */
+        .menu-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #e2e8f0;
+            z-index: 2000;
+        }
+        .menu-screen h1 {
+            font-size: 4rem;
+            margin-bottom: 2rem;
+            color: #0ff;
+            text-shadow: 0 0 15px #0ff;
+        }
+        .menu-screen button {
+            padding: 1rem 2.5rem;
+            margin: 0.75rem 0;
+            background-color: #0ff;
+            color: #000;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.8rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s, box-shadow 0.3s;
+            box-shadow: 0 0 15px #0ff;
+        }
+        .menu-screen button:hover {
+            background-color: #0cc;
+            transform: scale(1.05);
+            box-shadow: 0 0 25px #0cc;
+        }
+
+        /* Player HUD Bars */
+        .player-hud {
+            position: absolute;
+            bottom: 1rem;
+            left: 1rem;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            width: 200px; /* Lebar default untuk desktop */
+        }
+        .health-bar, .shield-bar {
+            width: 100%;
+            height: 25px;
+            background-color: #333;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #e2e8f0;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+            position: relative;
+        }
+        .health-bar-fill, .shield-bar-fill {
+            height: 100%;
+            width: 100%; /* Default to full */
+            transition: width 0.2s ease-out, background-color 0.2s ease-out;
+            border-radius: 6px;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        .health-bar-fill {
+            background-color: #0F0; /* Green */
+        }
+        .shield-bar-fill {
+            background-color: #00F; /* Blue */
+        }
+        .bar-label {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            color: #fff;
+            font-weight: bold;
+            line-height: 25px; /* Vertically center text */
+            text-shadow: 0 0 5px #000;
+            font-size: 0.9rem;
+        }
+
+        /* Responsive adjustments for HUD */
+        @media (max-width: 767px) {
+            .player-hud {
+                width: 150px; /* Lebih kecil di mobile */
+                bottom: 0.5rem;
+                left: 0.5rem;
+            }
+            .health-bar, .shield-bar {
+                height: 20px;
+            }
+            .bar-label {
+                font-size: 0.8rem;
+                line-height: 20px;
+            }
+            .game-info {
+                font-size: 1.2rem;
+                top: 0.5rem;
+                left: 0.5rem;
+                right: 0.5rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -238,6 +348,17 @@
             <button id="backwardButton" class="rounded-lg"><i class="fas fa-arrow-down"></i></button>
             <button id="shootButton" class="shoot-button rounded-lg"><i class="fas fa-crosshairs"></i> Tembak</button>
         </div>
+
+        <div class="player-hud">
+            <div class="health-bar">
+                <div id="healthBarFill" class="health-bar-fill"></div>
+                <span class="bar-label" id="healthLabel">Kesehatan: 100</span>
+            </div>
+            <div class="shield-bar">
+                <div id="shieldBarFill" class="shield-bar-fill"></div>
+                <span class="bar-label" id="shieldLabel">Perisai: 50</span>
+            </div>
+        </div>
     </div>
 
     <div id="messageBox" class="message-box">
@@ -245,15 +366,48 @@
         <button id="restartButton">Mulai Ulang</button>
     </div>
 
+    <div id="mainMenuScreen" class="menu-screen">
+        <h1>fire123-game</h1>
+        <button id="startGameButton">Mulai Game</button>
+        <button id="characterSelectButton">Pilih Karakter</button>
+        <button id="settingsButton">Pengaturan</button>
+    </div>
+
+    <div id="characterSelectScreen" class="menu-screen" style="display: none;">
+        <h1>Pilih Karakter</h1>
+        <p>Fitur ini akan segera hadir!</p>
+        <button id="backToMainMenuFromCharacter">Kembali ke Menu Utama</button>
+    </div>
+
+    <div id="settingsScreen" class="menu-screen" style="display: none;">
+        <h1>Pengaturan</h1>
+        <p>Atur opsi game di sini.</p>
+        <button id="backToMainMenuFromSettings">Kembali ke Menu Utama</button>
+    </div>
+
     <script>
         // Get info elements
         const scoreDisplay = document.getElementById('score');
-        const livesDisplay = document.getElementById('lives');
+        const livesDisplay = document.getElementById('lives'); // Keep for now, but health/shield are primary
 
         // Get message box elements
         const messageBox = document.getElementById('messageBox');
         const messageText = document.getElementById('messageText');
         const restartButton = document.getElementById('restartButton');
+
+        // Get main menu elements
+        const mainMenuScreen = document.getElementById('mainMenuScreen');
+        const startGameButton = document.getElementById('startGameButton');
+        const characterSelectButton = document.getElementById('characterSelectButton');
+        const settingsButton = document.getElementById('settingsButton');
+
+        // Get character select elements
+        const characterSelectScreen = document.getElementById('characterSelectScreen');
+        const backToMainMenuFromCharacterButton = document.getElementById('backToMainMenuFromCharacter');
+
+        // Get settings elements
+        const settingsScreen = document.getElementById('settingsScreen');
+        const backToMainMenuFromSettingsButton = document.getElementById('backToMainMenuFromSettings');
 
         // Get mobile controls
         const leftButton = document.getElementById('leftButton');
@@ -261,6 +415,13 @@
         const forwardButton = document.getElementById('forwardButton');
         const backwardButton = document.getElementById('backwardButton');
         const shootButton = document.getElementById('shootButton');
+
+        // Get player HUD elements
+        const healthBarFill = document.getElementById('healthBarFill');
+        const healthLabel = document.getElementById('healthLabel');
+        const shieldBarFill = document.getElementById('shieldBarFill');
+        const shieldLabel = document.getElementById('shieldLabel');
+        const playerHud = document.querySelector('.player-hud');
 
         // Three.js variables
         let scene, camera, renderer;
@@ -274,9 +435,13 @@
 
         // Game variables
         let score = 0;
-        let lives = 3;
+        let lives = 3; // Kept for now, but health/shield are primary damage absorption
+        let playerHealth = 100;
+        let playerMaxHealth = 100;
+        let playerShield = 50;
+        let playerMaxShield = 50;
         let gameOver = false;
-        let gameRunning = false; // Initialize to false
+        let gameState = 'menu'; // 'menu', 'playing', 'gameOver', 'characterSelect', 'settings'
 
         // Timing variables for frame-rate independence
         let lastFrameTime = 0;
@@ -312,6 +477,7 @@
         const ENEMY_COLOR = 0xFF0000; // Red
         const ENEMY_SPAWN_INTERVAL = 1500; // milliseconds (diperpanjang untuk debugging)
         let lastEnemySpawnTime = 0; // Akan diinisialisasi dengan Date.now() saat game dimulai
+        const ENEMY_DAMAGE_TO_PLAYER = 20; // Damage an enemy deals to player on collision
 
         // Game world dimensions (in Three.js units)
         const WORLD_SCALE_FACTOR = 3.5; // New scale factor for the map
@@ -415,11 +581,11 @@
             resizeRenderer(); // Set initial size
 
             // Lighting
-            const ambientLight = new THREE.AmbientLight(0x404040); // Soft white light
+            const ambientLight = new THREE.AmbientLight(0x606060); // Increased ambient light for better overall visibility
             scene.add(ambientLight);
 
             const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.7); // Light from above and below
-            scene.add(hemisphereLight);
+            scene.add(hemisphereLight); // ADDED HEMISPHERE LIGHT BACK
 
             const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
             directionalLight.position.set(5, 15, 5); // Posisi cahaya
@@ -461,7 +627,7 @@
             playerYawObject.add(camera); // Make camera a child of playerYawObject
 
             // Load Player Model (FBX)
-            const fbxLoader = new new THREE.FBXLoader();
+            const fbxLoader = new THREE.FBXLoader(); // Perbaikan: Menggunakan THREE.FBXLoader()
             const playerModelPath = 'https://raw.githubusercontent.com/fajrigans/assetgametembak/main/buat_karakter_ninja_b_0531120650_texture_fbx.fbx';
             fbxLoader.load(playerModelPath, (fbx) => {
                 playerModel = fbx;
@@ -700,10 +866,13 @@
             bullets = [];
             enemies = [];
             score = 0;
-            lives = 3;
+            lives = 3; // Reset lives for consistency, though health/shield are primary
+            playerHealth = playerMaxHealth;
+            playerShield = playerMaxShield;
             lastEnemySpawnTime = Date.now();
             updateScoreDisplay();
-            updateLivesDisplay();
+            updateLivesDisplay(); // Update lives display
+            updateHealthShieldDisplay(); // Update new health/shield display
 
             playerYawObject.position.set(0, 0, 5);
             playerYawObject.rotation.y = 0;
@@ -715,17 +884,19 @@
 
         // Fungsi untuk memulai permainan
         function startGame() {
-            if (gameRunning) return;
+            if (gameState === 'playing') return; // Prevent starting if already playing
             
             console.log("startGame called");
             initializeGameElements();
             gameOver = false;
-            gameRunning = true;
+            gameState = 'playing';
 
-            hideMessageBox();
+            hideAllScreens();
             Tone.start();
             
-            // Small delay before starting animation to ensure everything is ready
+            // Request pointer lock only when game starts
+            requestPointerLock();
+
             setTimeout(() => {
                 animate();
                 console.log("Game Started!");
@@ -852,12 +1023,24 @@
                 const enemyBox = new THREE.Box3().setFromObject(enemy.mesh);
 
                 if (playerCollisionBox.intersectsBox(enemyBox)) {
-                    lives--;
+                    // Apply damage to player's shield first, then health
+                    let damageRemaining = ENEMY_DAMAGE_TO_PLAYER;
+                    if (playerShield > 0) {
+                        const shieldDmg = Math.min(playerShield, damageRemaining);
+                        playerShield -= shieldDmg;
+                        damageRemaining -= shieldDmg;
+                    }
+                    if (damageRemaining > 0) {
+                        playerHealth -= damageRemaining;
+                    }
+                    
                     playSound(playerHitSynth, "C3", "8n");
-                    updateLivesDisplay();
+                    updateHealthShieldDisplay(); // Update health and shield bars
+                    
                     scene.remove(enemy.mesh);
                     enemies.splice(i, 1);
-                    if (lives <= 0) {
+                    
+                    if (playerHealth <= 0) {
                         endGame("GAME OVER! Musuh menabrak Anda.");
                     }
                     continue;
@@ -921,24 +1104,56 @@
         }
 
         function updateLivesDisplay() {
-            livesDisplay.textContent = `Nyawa: ${lives}`;
+            livesDisplay.textContent = `Nyawa: ${lives}`; // Still show lives for now, could be removed
+        }
+
+        function updateHealthShieldDisplay() {
+            // Health Bar
+            const healthPercentage = (playerHealth / playerMaxHealth) * 100;
+            healthBarFill.style.width = `${Math.max(0, healthPercentage)}%`;
+            healthLabel.textContent = `Kesehatan: ${Math.max(0, Math.floor(playerHealth))}`;
+            if (playerHealth > 50) {
+                healthBarFill.style.backgroundColor = '#0F0'; // Green
+            } else if (playerHealth > 20) {
+                healthBarFill.style.backgroundColor = '#FFD700'; // Gold/Yellow
+            } else {
+                healthBarFill.style.backgroundColor = '#F00'; // Red
+            }
+
+            // Shield Bar
+            const shieldPercentage = (playerShield / playerMaxShield) * 100;
+            shieldBarFill.style.width = `${Math.max(0, shieldPercentage)}%`;
+            shieldLabel.textContent = `Perisai: ${Math.max(0, Math.floor(playerShield))}`;
+            if (playerShield > 20) {
+                shieldBarFill.style.backgroundColor = '#00F'; // Blue
+            } else {
+                shieldBarFill.style.backgroundColor = '#800080'; // Purple
+            }
         }
 
         // --- Game Over / Message Box ---
         function showMessageBox(message) {
             messageText.textContent = message;
             messageBox.style.display = 'block';
+            playerHud.style.display = 'none'; // Hide HUD when message box is shown
         }
 
         function hideMessageBox() {
             messageBox.style.display = 'none';
+            if (gameState === 'playing') {
+                playerHud.style.display = 'flex'; // Show HUD only during gameplay
+            }
         }
 
         function endGame(message) {
             console.log("GAME OVER CALLED with message:", message);
             gameOver = true;
-            gameRunning = false;
+            gameState = 'gameOver';
             showMessageBox(message);
+            // Unlock pointer if locked
+            if (document.pointerLockElement) {
+                document.exitPointerLock();
+            }
         }
 
         // --- Main Game Loop ---
@@ -949,8 +1164,8 @@
             const deltaTime = (currentTime - lastFrameTime) / 1000;
             lastFrameTime = currentTime;
 
-            if (gameOver || !gameRunning) { // Stop animation if game is over or not running
-                requestAnimationFrame(animate); // Keep requesting to render pause/game over screen
+            if (gameState !== 'playing') { // Only update game logic if playing
+                requestAnimationFrame(animate); // Keep rendering the current state (menu/game over)
                 return;
             }
 
@@ -964,13 +1179,49 @@
             requestAnimationFrame(animate);
         }
 
+        // --- Screen Management ---
+        function hideAllScreens() {
+            mainMenuScreen.style.display = 'none';
+            characterSelectScreen.style.display = 'none';
+            settingsScreen.style.display = 'none';
+            messageBox.style.display = 'none';
+            playerHud.style.display = 'none'; // Hide HUD by default
+        }
+
+        function showMainMenu() {
+            hideAllScreens();
+            mainMenuScreen.style.display = 'flex';
+            gameState = 'menu';
+            // Unlock pointer if locked when returning to menu
+            if (document.pointerLockElement) {
+                document.exitPointerLock();
+            }
+        }
+
+        function showCharacterSelection() {
+            hideAllScreens();
+            characterSelectScreen.style.display = 'flex';
+            gameState = 'characterSelect';
+        }
+
+        function showSettings() {
+            hideAllScreens();
+            settingsScreen.style.display = 'flex';
+            gameState = 'settings';
+        }
+
+
         // --- Event Listeners ---
         window.addEventListener('keydown', (e) => {
-            keys[e.key] = true;
+            if (gameState === 'playing') {
+                keys[e.key] = true;
+            }
         });
 
         window.addEventListener('keyup', (e) => {
-            keys[e.key] = false;
+            if (gameState === 'playing') {
+                keys[e.key] = false;
+            }
         });
 
         // --- Pointer Lock for Mouse Rotation ---
@@ -991,11 +1242,20 @@
             isPointerLocked = document.pointerLockElement === canvas3D || document.mozPointerLockElement === canvas3D || document.webkitPointerLockElement === canvas3D;
             if (isPointerLocked) {
                 console.log('Pointer locked');
+                // Ensure game continues animating if it was playing and pointer lock is re-acquired
+                if (gameState === 'playing' && !gameOver) {
+                    animate();
+                }
             } else {
                 console.log('Pointer unlocked');
                 isMouseDown = false;
                 isZoomed = false; // Reset zoom on pointer unlock
                 updateCameraFOV(false);
+                // If game was playing and pointer is unlocked, pause or show menu
+                if (gameState === 'playing' && !gameOver) {
+                    // Optionally pause the game or show a pause menu
+                    // For now, we'll just stop movement and shooting, but keep rendering
+                }
             }
         }, false);
 
@@ -1007,15 +1267,16 @@
             isPointerLocked = document.webkitPointerLockElement === canvas3D;
         }, false);
 
+        // Click on canvas to request pointer lock (only if playing and not locked)
         canvas3D.addEventListener('click', () => {
-            if (!gameOver && gameRunning && !isPointerLocked) { 
+            if (gameState === 'playing' && !isPointerLocked) { 
                 requestPointerLock();
             }
         });
 
         // --- Mouse Down (Left Click) for Shooting, Right Click for Zoom ---
         document.addEventListener('mousedown', (event) => {
-            if (isPointerLocked && !gameOver && gameRunning) {
+            if (gameState === 'playing' && isPointerLocked) {
                 if (event.button === 0) { // Left click
                     isMouseDown = true;
                     shootBullet();
@@ -1060,7 +1321,7 @@
         }
 
         document.addEventListener('mousemove', (event) => {
-            if (isPointerLocked) {
+            if (gameState === 'playing' && isPointerLocked) {
                 const movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
                 const movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
 
@@ -1075,7 +1336,7 @@
 
         // --- Mobile Touch Drag for Rotation ---
         canvas3D.addEventListener('touchstart', (e) => {
-            if (e.touches.length === 1 && !gameOver && gameRunning && e.target === canvas3D) {
+            if (e.touches.length === 1 && gameState === 'playing' && e.target === canvas3D) {
                 isTouchDragging = true;
                 previousTouchX = e.touches[0].clientX;
                 previousTouchY = e.touches[0].clientY;
@@ -1129,12 +1390,20 @@
 
         shootButton.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            if (!gameOver && gameRunning) {
+            if (gameState === 'playing') {
                 shootBullet();
             }
         }, { passive: false });
 
         restartButton.addEventListener('click', startGame);
+
+        // Menu button listeners
+        startGameButton.addEventListener('click', startGame);
+        characterSelectButton.addEventListener('click', showCharacterSelection);
+        settingsButton.addEventListener('click', showSettings);
+        backToMainMenuFromCharacterButton.addEventListener('click', showMainMenu);
+        backToMainMenuFromSettingsButton.addEventListener('click', showMainMenu);
+
 
         // Handle window resize
         function resizeRenderer() {
@@ -1158,37 +1427,18 @@
         // Initial setup on window load
         window.onload = function() {
             initThreeJS();
-            
-            score = 0;
-            lives = 3;
-            gameOver = false;
-            gameRunning = false;
-
+            // Start with main menu visible
+            showMainMenu();
+            // Initial display updates
             updateScoreDisplay();
             updateLivesDisplay();
+            updateHealthShieldDisplay();
 
-            showMessageBox("Selamat datang! Klik 'Mulai Ulang' atau tekan tombol apa saja untuk memulai permainan. Klik di dalam area game untuk mengaktifkan kontrol kamera.");
-            
-            // Listen for first user interaction to start game and enable audio
-            window.addEventListener('click', function startGameOnce() {
-                if (!gameRunning && !gameOver) {
-                    startGame();
-                    window.removeEventListener('click', startGameOnce);
-                }
-            }, { once: true });
-            window.addEventListener('keydown', function startGameKey() {
-                if (!gameRunning && !gameOver) {
-                    startGame();
-                    window.removeEventListener('keydown', startGameKey);
-                }
-            }, { once: true });
-            // Add a touch listener for mobile to start the game
-            window.addEventListener('touchstart', function startGameTouch() {
-                if (!gameRunning && !gameOver) {
-                    startGame();
-                    window.removeEventListener('touchstart', startGameTouch);
-                }
-            }, { once: true });
+            // Tone.js context needs to be started by a user gesture
+            // We'll start it when the user clicks 'Mulai Game' or any other button
+            // in the main menu, or clicks the canvas itself.
+            // For now, remove the direct window.onload Tone.start()
+            // and rely on the startGame function or other button clicks.
         };
 
     </script>
