@@ -49,6 +49,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fflate@0.7.1/umd/index.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
 
     <style>
@@ -99,7 +100,7 @@
             position: absolute;
             top: 1rem;
             left: 1rem;
-            right: 1rem;
+            right: 5rem; /* Menyesuaikan untuk tombol menu */
             padding: 0 1rem;
             font-size: 1.8rem; /* Ukuran font lebih besar */
             text-shadow: 0 0 8px #0ff, 0 0 12px #0ff; /* Cahaya neon untuk teks */
@@ -328,14 +329,76 @@
                 right: 0.5rem;
             }
         }
+
+        /* Settings Screen Specific Styles */
+        .settings-group {
+            width: 80%;
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+        .settings-group label {
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+            color: #a0aec0;
+        }
+        .settings-group input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
+            background: #4a5568;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .2s;
+            border-radius: 4px;
+        }
+        .settings-group input[type="range"]:hover {
+            opacity: 1;
+        }
+        .settings-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #0ff;
+            cursor: pointer;
+            box-shadow: 0 0 10px #0ff;
+        }
+        .settings-group input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #0ff;
+            cursor: pointer;
+            box-shadow: 0 0 10px #0ff;
+        }
+        .settings-group span.text-sm {
+            align-self: flex-end;
+            margin-top: 0.25rem;
+            color: #cbd5e0;
+        }
+        .settings-group button {
+            padding: 0.5rem 1rem;
+            font-size: 1rem;
+            margin: 0; /* Override default menu button margin */
+        }
+        .settings-group button.selected {
+            background-color: #0cc;
+            box-shadow: 0 0 15px #0cc;
+        }
     </style>
 </head>
 <body>
     <div class="game-container">
         <div class="game-info">
             <div id="score">Skor: 0</div>
-            <div id="lives">Nyawa: 3</div>
-        </div>
+            </div>
+        <button id="menuToggleButton" class="absolute top-4 right-4 z-50 p-3 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors">
+            <i class="fas fa-bars text-xl"></i>
+        </button>
         <div class="crosshair"></div>
         <canvas id="gameCanvas3D"></canvas>
 
@@ -382,13 +445,30 @@
     <div id="settingsScreen" class="menu-screen" style="display: none;">
         <h1>Pengaturan</h1>
         <p>Atur opsi game di sini.</p>
-        <button id="backToMainMenuFromSettings">Kembali ke Menu Utama</button>
+        <div class="settings-group">
+            <label for="mouseSensitivitySlider" id="mouseSensitivityLabel">Sensitivitas Mouse:</label>
+            <input type="range" id="mouseSensitivitySlider" min="0.0005" max="0.005" step="0.0001" value="0.0015" class="w-full">
+            <span id="mouseSensitivityValue" class="text-sm">0.0015</span>
+        </div>
+        <div class="settings-group mt-4">
+            <label for="volumeSlider" id="volumeLabel">Volume:</label>
+            <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.5" class="w-full">
+            <span id="volumeValue" class="text-sm">50%</span>
+        </div>
+        <div class="settings-group mt-4">
+            <label id="languageLabel">Bahasa:</label>
+            <div class="flex gap-2 mt-2">
+                <button id="langIdButton" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-base">Indonesia</button>
+                <button id="langEnButton" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md text-base">English</button>
+            </div>
+        </div>
+        <button id="backToMainMenuFromSettings" class="mt-8">Kembali ke Menu Utama</button>
     </div>
 
     <script>
         // Get info elements
         const scoreDisplay = document.getElementById('score');
-        const livesDisplay = document.getElementById('lives'); // Keep for now, but health/shield are primary
+        // const livesDisplay = document.getElementById('lives'); // Removed as health/shield are primary
 
         // Get message box elements
         const messageBox = document.getElementById('messageBox');
@@ -408,6 +488,12 @@
         // Get settings elements
         const settingsScreen = document.getElementById('settingsScreen');
         const backToMainMenuFromSettingsButton = document.getElementById('backToMainMenuFromSettings');
+        const mouseSensitivitySlider = document.getElementById('mouseSensitivitySlider');
+        const mouseSensitivityValueDisplay = document.getElementById('mouseSensitivityValue');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volumeValueDisplay = document.getElementById('volumeValue');
+        const langIdButton = document.getElementById('langIdButton');
+        const langEnButton = document.getElementById('langEnButton');
 
         // Get mobile controls
         const leftButton = document.getElementById('leftButton');
@@ -423,6 +509,9 @@
         const shieldLabel = document.getElementById('shieldLabel');
         const playerHud = document.querySelector('.player-hud');
 
+        // Get menu toggle button
+        const menuToggleButton = document.getElementById('menuToggleButton');
+
         // Three.js variables
         let scene, camera, renderer;
         let playerYawObject; // Object to handle horizontal rotation (yaw)
@@ -435,7 +524,7 @@
 
         // Game variables
         let score = 0;
-        let lives = 3; // Kept for now, but health/shield are primary damage absorption
+        let lives = 3; // Kept for consistency, but health/shield are primary damage absorption
         let playerHealth = 100;
         let playerMaxHealth = 100;
         let playerShield = 50;
@@ -508,7 +597,8 @@
 
         // Camera rotation variables
         let isPointerLocked = false;
-        const mouseSensitivity = 0.0015; // Lowered for more precise aiming (Valorant-like)
+        // mouseSensitivity is now a global variable controlled by settings
+        let mouseSensitivity = 0.0015; // Default value, can be changed in settings
         const pitchLimit = Math.PI / 2 - 0.1; // Limit vertical look (e.g., 80 degrees up/down)
         let isTouchDragging = false;
         let previousTouchX = 0;
@@ -546,6 +636,59 @@
                 release: 0.5
             }
         }).toDestination();
+
+        // masterVolume is now a global variable controlled by settings
+        let masterVolume = 0.5; // Default volume (0.0 to 1.0)
+        let currentLanguage = 'id'; // 'id' for Indonesian, 'en' for English
+
+        const translations = {
+            'id': {
+                'gameTitle': 'fire123-game',
+                'startGame': 'Mulai Game',
+                'characterSelect': 'Pilih Karakter',
+                'settings': 'Pengaturan',
+                'backToMainMenu': 'Kembali ke Menu Utama',
+                'charSelectTitle': 'Pilih Karakter',
+                'charSelectPlaceholder': 'Fitur ini akan segera hadir!',
+                'settingsTitle': 'Pengaturan',
+                'settingsPlaceholder': 'Atur opsi game di sini.',
+                'mouseSensitivityLabel': 'Sensitivitas Mouse:',
+                'volumeLabel': 'Volume:',
+                'languageLabel': 'Bahasa:',
+                'score': 'Skor:',
+                // 'lives': 'Nyawa:', // Removed from display
+                'health': 'Kesehatan:',
+                'shield': 'Perisai:',
+                'gameOverMessage': 'GAME OVER! Musuh menabrak Anda.',
+                'restartButton': 'Mulai Ulang',
+                'welcomeMessage': "Selamat datang! Klik 'Mulai Game' untuk memulai permainan. Gunakan ESC untuk membuka/menutup menu. Klik di dalam area game untuk mengaktifkan kontrol kamera.",
+                'shootButton': 'Tembak',
+                'gamePaused': 'Game Dijeda.'
+            },
+            'en': {
+                'gameTitle': 'fire123-game',
+                'startGame': 'Start Game',
+                'characterSelect': 'Select Character',
+                'settings': 'Settings',
+                'backToMainMenu': 'Back to Main Menu',
+                'charSelectTitle': 'Select Character',
+                'charSelectPlaceholder': 'This feature is coming soon!',
+                'settingsTitle': 'Settings',
+                'settingsPlaceholder': 'Adjust game options here.',
+                'mouseSensitivityLabel': 'Mouse Sensitivity:',
+                'volumeLabel': 'Volume:',
+                'languageLabel': 'Language:',
+                'score': 'Score:',
+                // 'lives': 'Lives:', // Removed from display
+                'health': 'Health:',
+                'shield': 'Shield:',
+                'gameOverMessage': 'GAME OVER! Enemy collided with you.',
+                'restartButton': 'Restart',
+                'welcomeMessage': "Welcome! Click 'Start Game' to begin. Use ESC to open/close menu. Click inside the game area to activate camera controls.",
+                'shootButton': 'Shoot',
+                'gamePaused': 'Game Paused.'
+            }
+        };
 
         // Helper function to play sound only if audio context is running and valid
         function playSound(synth, note, duration) {
@@ -866,12 +1009,12 @@
             bullets = [];
             enemies = [];
             score = 0;
-            lives = 3; // Reset lives for consistency, though health/shield are primary
+            lives = 3; // Kept for consistency, but health/shield are primary
             playerHealth = playerMaxHealth;
             playerShield = playerMaxShield;
             lastEnemySpawnTime = Date.now();
             updateScoreDisplay();
-            updateLivesDisplay(); // Update lives display
+            // updateLivesDisplay(); // Removed as health/shield are primary
             updateHealthShieldDisplay(); // Update new health/shield display
 
             playerYawObject.position.set(0, 0, 5);
@@ -897,10 +1040,10 @@
             // Request pointer lock only when game starts
             requestPointerLock();
 
-            setTimeout(() => {
-                animate();
-                console.log("Game Started!");
-            }, 100);
+            // The animate loop is always running, but game logic is gated by gameState
+            // No need to call animate() here, it's already called once on window.onload
+            // and continues to requestAnimationFrame.
+            console.log("Game Started!");
         }
 
         // --- Update Game State Functions ---
@@ -1041,7 +1184,7 @@
                     enemies.splice(i, 1);
                     
                     if (playerHealth <= 0) {
-                        endGame("GAME OVER! Musuh menabrak Anda.");
+                        endGame(translations[currentLanguage].gameOverMessage);
                     }
                     continue;
                 }
@@ -1100,18 +1243,14 @@
 
         // --- Display Updates ---
         function updateScoreDisplay() {
-            scoreDisplay.textContent = `Skor: ${score}`;
-        }
-
-        function updateLivesDisplay() {
-            livesDisplay.textContent = `Nyawa: ${lives}`; // Still show lives for now, could be removed
+            scoreDisplay.textContent = `${translations[currentLanguage].score} ${score}`;
         }
 
         function updateHealthShieldDisplay() {
             // Health Bar
             const healthPercentage = (playerHealth / playerMaxHealth) * 100;
             healthBarFill.style.width = `${Math.max(0, healthPercentage)}%`;
-            healthLabel.textContent = `Kesehatan: ${Math.max(0, Math.floor(playerHealth))}`;
+            healthLabel.textContent = `${translations[currentLanguage].health} ${Math.max(0, Math.floor(playerHealth))}`;
             if (playerHealth > 50) {
                 healthBarFill.style.backgroundColor = '#0F0'; // Green
             } else if (playerHealth > 20) {
@@ -1123,7 +1262,7 @@
             // Shield Bar
             const shieldPercentage = (playerShield / playerMaxShield) * 100;
             shieldBarFill.style.width = `${Math.max(0, shieldPercentage)}%`;
-            shieldLabel.textContent = `Perisai: ${Math.max(0, Math.floor(playerShield))}`;
+            shieldLabel.textContent = `${translations[currentLanguage].shield} ${Math.max(0, Math.floor(playerShield))}`;
             if (playerShield > 20) {
                 shieldBarFill.style.backgroundColor = '#00F'; // Blue
             } else {
@@ -1131,17 +1270,48 @@
             }
         }
 
+        // Function to update settings UI elements based on current values
+        function updateSettingsDisplay() {
+            mouseSensitivitySlider.value = mouseSensitivity;
+            mouseSensitivityValueDisplay.textContent = mouseSensitivity.toFixed(4);
+
+            volumeSlider.value = masterVolume;
+            volumeValueDisplay.textContent = `${Math.floor(masterVolume * 100)}%`;
+
+            // Update language button selection
+            if (currentLanguage === 'id') {
+                langIdButton.classList.add('selected');
+                langEnButton.classList.remove('selected');
+                langIdButton.style.backgroundColor = '#2563eb'; // Tailwind blue-600
+                langEnButton.style.backgroundColor = '#4b5563'; // Tailwind gray-600
+            } else {
+                langIdButton.classList.remove('selected');
+                langEnButton.classList.add('selected');
+                langIdButton.style.backgroundColor = '#4b5563'; // Tailwind gray-600
+                langEnButton.style.backgroundColor = '#2563eb'; // Tailwind blue-600
+            }
+        }
+
+        // Function to change the game language
+        function updateLanguage(lang) {
+            currentLanguage = lang;
+            updateLanguageDisplay();
+        }
+
         // --- Game Over / Message Box ---
         function showMessageBox(message) {
             messageText.textContent = message;
+            messageText.dataset.originalMessage = message; // Store original message for language changes
             messageBox.style.display = 'block';
             playerHud.style.display = 'none'; // Hide HUD when message box is shown
+            menuToggleButton.style.display = 'none'; // Hide menu button
         }
 
         function hideMessageBox() {
             messageBox.style.display = 'none';
             if (gameState === 'playing') {
                 playerHud.style.display = 'flex'; // Show HUD only during gameplay
+                menuToggleButton.style.display = 'block'; // Show menu button
             }
         }
 
@@ -1165,6 +1335,7 @@
             lastFrameTime = currentTime;
 
             if (gameState !== 'playing') { // Only update game logic if playing
+                renderer.render(scene, camera); // Still render the scene even if paused/menu
                 requestAnimationFrame(animate); // Keep rendering the current state (menu/game over)
                 return;
             }
@@ -1186,6 +1357,7 @@
             settingsScreen.style.display = 'none';
             messageBox.style.display = 'none';
             playerHud.style.display = 'none'; // Hide HUD by default
+            menuToggleButton.style.display = 'none'; // Hide menu button by default
         }
 
         function showMainMenu() {
@@ -1208,12 +1380,27 @@
             hideAllScreens();
             settingsScreen.style.display = 'flex';
             gameState = 'settings';
+            updateSettingsDisplay(); // Update settings UI when shown
         }
 
 
         // --- Event Listeners ---
         window.addEventListener('keydown', (e) => {
-            if (gameState === 'playing') {
+            if (e.key === 'Escape') {
+                e.preventDefault(); // Prevent browser default actions for Esc
+                if (gameState === 'playing' || gameState === 'gameOver') {
+                    // Pause game and show main menu
+                    if (document.pointerLockElement) {
+                        document.exitPointerLock();
+                    }
+                    showMainMenu();
+                } else if (gameState === 'characterSelect' || gameState === 'settings') {
+                    // If in a sub-menu, go back to main menu
+                    showMainMenu();
+                } else if (gameState === 'menu') { // If in main menu, resume game
+                    startGame(); // This will hide menus and request pointer lock
+                }
+            } else if (gameState === 'playing') { // Only process other keys if playing
                 keys[e.key] = true;
             }
         });
@@ -1244,17 +1431,20 @@
                 console.log('Pointer locked');
                 // Ensure game continues animating if it was playing and pointer lock is re-acquired
                 if (gameState === 'playing' && !gameOver) {
-                    animate();
+                    // No need to call animate() here, it's always running.
+                    // Just ensure game logic resumes if it was paused due to pointer unlock.
                 }
             } else {
                 console.log('Pointer unlocked');
                 isMouseDown = false;
                 isZoomed = false; // Reset zoom on pointer unlock
                 updateCameraFOV(false);
-                // If game was playing and pointer is unlocked, pause or show menu
+                // If game was playing and pointer is unlocked, it means user exited pointer lock
+                // We should show the main menu or a pause screen.
                 if (gameState === 'playing' && !gameOver) {
-                    // Optionally pause the game or show a pause menu
-                    // For now, we'll just stop movement and shooting, but keep rendering
+                    showMessageBox(translations[currentLanguage].gamePaused);
+                    // Do not change gameState to 'menu' here, as showMessageBox handles it.
+                    // The main menu or pause screen should be shown.
                 }
             }
         }, false);
@@ -1403,6 +1593,33 @@
         settingsButton.addEventListener('click', showSettings);
         backToMainMenuFromCharacterButton.addEventListener('click', showMainMenu);
         backToMainMenuFromSettingsButton.addEventListener('click', showMainMenu);
+        menuToggleButton.addEventListener('click', () => {
+            if (gameState === 'playing') {
+                // Pause game and show main menu
+                if (document.pointerLockElement) {
+                    document.exitPointerLock();
+                }
+                showMainMenu();
+            } else if (gameState === 'menu') {
+                // Resume game from main menu
+                startGame();
+            }
+        });
+
+        // Settings control listeners
+        mouseSensitivitySlider.addEventListener('input', (e) => {
+            mouseSensitivity = parseFloat(e.target.value);
+            updateSettingsDisplay(); // Update display immediately
+        });
+
+        volumeSlider.addEventListener('input', (e) => {
+            masterVolume = parseFloat(e.target.value);
+            Tone.Destination.volume.value = (masterVolume * 40) - 40; // Map 0-1 to -40dB to 0dB
+            updateSettingsDisplay(); // Update display immediately
+        });
+
+        langIdButton.addEventListener('click', () => updateLanguage('id'));
+        langEnButton.addEventListener('click', () => updateLanguage('en'));
 
 
         // Handle window resize
@@ -1424,21 +1641,77 @@
             }
         }
 
+        // Function to update all displayed text based on current language
+        function updateLanguageDisplay() {
+            const t = translations[currentLanguage];
+
+            // Update main menu
+            document.getElementById('mainMenuScreen').querySelector('h1').textContent = t.gameTitle;
+            startGameButton.textContent = t.startGame;
+            characterSelectButton.textContent = t.characterSelect;
+            settingsButton.textContent = t.settings;
+
+            // Update character select screen
+            characterSelectScreen.querySelector('h1').textContent = t.charSelectTitle;
+            characterSelectScreen.querySelector('p').textContent = t.charSelectPlaceholder;
+            backToMainMenuFromCharacterButton.textContent = t.backToMainMenu;
+
+            // Update settings screen
+            settingsScreen.querySelector('h1').textContent = t.settingsTitle;
+            settingsScreen.querySelector('p').textContent = t.settingsPlaceholder;
+            document.getElementById('mouseSensitivityLabel').textContent = t.mouseSensitivityLabel;
+            document.getElementById('volumeLabel').textContent = t.volumeLabel;
+            document.getElementById('languageLabel').textContent = t.languageLabel;
+            backToMainMenuFromSettingsButton.textContent = t.backToMainMenu;
+
+            // Update HUD
+            scoreDisplay.textContent = `${t.score} ${score}`;
+            healthLabel.textContent = `${t.health} ${Math.max(0, Math.floor(playerHealth))}`;
+            shieldLabel.textContent = `${t.shield} ${Math.max(0, Math.floor(playerShield))}`;
+
+            // Update message box
+            restartButton.textContent = t.restartButton;
+            // If message box is visible, re-set its text with the translated original message
+            if (messageBox.style.display === 'block' && messageText.dataset.originalMessage) {
+                // If the message is the game over message, translate it.
+                // Otherwise, it might be a specific message that doesn't need translation.
+                if (messageText.dataset.originalMessage.includes("GAME OVER!")) { // Check for original English or Indonesian game over message
+                    messageText.textContent = t.gameOverMessage;
+                } else if (messageText.dataset.originalMessage.includes("Game Paused.")) { // Check for original English or Indonesian game paused message
+                    messageText.textContent = t.gamePaused;
+                } else {
+                    // For the initial welcome message, set it directly
+                    messageText.textContent = t.welcomeMessage;
+                }
+            } else if (gameState === 'menu') {
+                 // For the initial welcome message when menu is shown
+                 messageText.dataset.originalMessage = t.welcomeMessage;
+                 messageText.textContent = t.welcomeMessage; // Ensure it's set on initial load
+            }
+
+
+            // Update mobile shoot button
+            shootButton.innerHTML = `<i class="fas fa-crosshairs"></i> ${t.shootButton}`;
+
+            // Update settings display to reflect language button selection
+            updateSettingsDisplay();
+        }
+
+
         // Initial setup on window load
         window.onload = function() {
             initThreeJS();
+            // Set initial volume for Tone.js
+            Tone.Destination.volume.value = (masterVolume * 40) - 40;
             // Start with main menu visible
             showMainMenu();
-            // Initial display updates
-            updateScoreDisplay();
-            updateLivesDisplay();
-            updateHealthShieldDisplay();
+            // Initial display updates based on default language
+            updateLanguageDisplay();
+            updateHealthShieldDisplay(); // Ensure health/shield bars are initialized
+            updateSettingsDisplay(); // Ensure settings UI reflects initial values
 
-            // Tone.js context needs to be started by a user gesture
-            // We'll start it when the user clicks 'Mulai Game' or any other button
-            // in the main menu, or clicks the canvas itself.
-            // For now, remove the direct window.onload Tone.start()
-            // and rely on the startGame function or other button clicks.
+            // Start the animation loop, but game logic will only run when gameState is 'playing'
+            animate();
         };
 
     </script>
