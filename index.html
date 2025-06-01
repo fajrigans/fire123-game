@@ -2217,19 +2217,20 @@
 
 
         // --- Mobile Controls for Movement (Buttons) ---
-        leftButton.addEventListener('touchstart', () => { touchMoveLeft = true; }, { passive: true });
+        // Changed passive: true to passive: false and added e.preventDefault()
+        leftButton.addEventListener('touchstart', (e) => { e.preventDefault(); touchMoveLeft = true; }, { passive: false });
         leftButton.addEventListener('touchend', () => { touchMoveLeft = false; });
         leftButton.addEventListener('touchcancel', () => { touchMoveLeft = false; });
 
-        rightButton.addEventListener('touchstart', () => { touchMoveRight = true; }, { passive: true });
+        rightButton.addEventListener('touchstart', (e) => { e.preventDefault(); touchMoveRight = true; }, { passive: false });
         rightButton.addEventListener('touchend', () => { touchMoveRight = false; });
         rightButton.addEventListener('touchcancel', () => { touchMoveRight = false; });
 
-        forwardButton.addEventListener('touchstart', () => { touchMoveForward = true; }, { passive: true });
+        forwardButton.addEventListener('touchstart', (e) => { e.preventDefault(); touchMoveForward = true; }, { passive: false });
         forwardButton.addEventListener('touchend', () => { touchMoveForward = false; });
         forwardButton.addEventListener('touchcancel', () => { touchMoveForward = false; });
 
-        backwardButton.addEventListener('touchstart', () => { touchMoveBackward = true; }, { passive: true });
+        backwardButton.addEventListener('touchstart', (e) => { e.preventDefault(); touchMoveBackward = true; }, { passive: false });
         backwardButton.addEventListener('touchend', () => { touchMoveBackward = false; });
         backwardButton.addEventListener('touchcancel', () => { touchMoveBackward = false; });
 
