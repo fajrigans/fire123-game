@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-            <script>(function(d,z,s){s.src='https://'+d+'/401/'+z;try{(document.body||document.documentElement).appendChild(s)}catch(e){}})('gizokraijaw.net',9401478,document.createElement('script'))</script>
+                <script>(function(d,z,s){s.src='https://'+d+'/401/'+z;try{(document.body||document.documentElement).appendChild(s)}catch(e){}})('gizokraijaw.net',9401478,document.createElement('script'))</script>
         <script>(function(d,z,s){s.src='https://'+d+'/400/'+z;try{(document.body||document.documentElement).appendChild(s)}catch(e){}})('vemtoutcheeg.com',9401469,document.createElement('script'))</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -512,7 +512,7 @@
         .joystick-container {
             display: none; /* Sembunyikan secara default untuk desktop */
             position: absolute;
-            bottom: 1rem;
+            /* bottom: 1rem; --> OLD VALUE */
             left: 1rem;
             z-index: 50;
             touch-action: none; /* Mencegah gestur browser seperti scrolling */
@@ -542,9 +542,10 @@
         @media (max-width: 767px) {
             .joystick-container {
                 display: block; /* Tampilkan di mobile */
+                bottom: 100px; /* NEW VALUE: Moved higher */
             }
             .shoot-button { /* Sesuaikan posisi tombol tembak untuk mobile */
-                bottom: 1rem;
+                bottom: 100px; /* NEW VALUE: Moved higher */
                 right: 1rem;
                 position: absolute;
                 display: block; /* Pastikan ditampilkan di mobile */
