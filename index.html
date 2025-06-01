@@ -358,6 +358,7 @@
             padding-top: 2rem; /* Add some top padding */
         }
         #weaponSelectScreen h1 {
+            font-size: 4rem;
             margin-bottom: 1rem;
         }
         #weaponSelectScreen #container {
@@ -537,7 +538,7 @@
             transition: transform 0.1s ease-out; /* Smooth return to center */
         }
 
-        /* Show joystick on mobile */
+        /* Show joystick and shoot button on mobile */
         @media (max-width: 767px) {
             .joystick-container {
                 display: block;
@@ -546,6 +547,18 @@
                 bottom: 1rem;
                 right: 1rem;
                 position: absolute;
+                display: block; /* Ensure it's displayed on mobile */
+                padding: 1rem 2rem; /* Make button larger for touch */
+                font-size: 1.5rem;
+                background-color: #ef4444; /* Red color for shoot button */
+                color: white;
+                border-radius: 12px;
+                box-shadow: 0 0 15px rgba(255,0,0,0.5);
+                transition: background-color 0.2s, transform 0.1s;
+            }
+            .shoot-button:active {
+                background-color: #dc2626;
+                transform: scale(0.95);
             }
         }
     </style>
@@ -705,11 +718,7 @@
         const langEnButton = document.getElementById('langEnButton');
 
         // Get mobile controls (old, now hidden by CSS)
-        // const leftButton = document.getElementById('leftButton');
-        // const rightButton = document.getElementById('rightButton');
-        // const forwardButton = document.getElementById('forwardButton');
-        // const backwardButton = document.getElementById('backwardButton');
-        const shootButton = document.getElementById('shootButton');
+        const shootButton = document.getElementById('shootButton'); // Still need this for the new button
 
         // Get player HUD elements
         const healthBarFill = document.getElementById('healthBarFill');
@@ -2289,6 +2298,7 @@
         // --- Mobile Touch Drag for Camera Rotation (on canvas) ---
         canvas3D.addEventListener('touchstart', (e) => {
             // Only activate touch drag for camera if not interacting with joystick/buttons
+            // Check if the touch is NOT on the joystick or shoot button
             if (e.touches.length === 1 && gameState === 'playing' && e.target === canvas3D) {
                 isTouchDragging = true;
                 previousTouchX = e.touches[0].clientX;
@@ -2334,9 +2344,9 @@
             startY: 0,
             currentX: 0,
             currentY: 0,
-            radius: joystickBase ? joystickBase.clientWidth / 2 : 64, // Half of base width
-            knobRadius: joystickKnob ? joystickKnob.clientWidth / 2 : 32, // Half of knob width
-            maxDistance: joystickBase ? (joystickBase.clientWidth / 2) - (joystickKnob.clientWidth / 2) : 32 // Max distance knob can move
+            radius: 0, // Will be calculated in window.onload
+            knobRadius: 0, // Will be calculated in window.onload
+            maxDistance: 0 // Will be calculated in window.onload
         };
 
         // Update joystick position and map to movement flags
@@ -2344,11 +2354,14 @@
             if (!joystick.active) return;
 
             const touch = e.touches[0];
-            joystick.currentX = touch.clientX;
-            joystick.currentY = touch.clientY;
+            
+            // Get the current position of the joystick base relative to the viewport
+            const rect = joystickBase.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
 
-            let deltaX = joystick.currentX - joystick.startX;
-            let deltaY = joystick.currentY - joystick.startY;
+            let deltaX = touch.clientX - centerX;
+            let deltaY = touch.clientY - centerY;
 
             const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
@@ -2371,26 +2384,16 @@
                 const angle = Math.atan2(deltaY, deltaX); // Angle in radians
 
                 // Determine direction based on angle (8 directions)
-                if (angle > -Math.PI / 8 && angle <= Math.PI / 8) { // Right
+                // Adjusting angles for typical FPS movement (forward is -Y, backward is +Y)
+                // 0 = right, PI/2 = down, PI = left, -PI/2 = up
+                if (angle > -Math.PI / 4 && angle <= Math.PI / 4) { // Right
                     touchMoveRight = true;
-                } else if (angle > Math.PI / 8 && angle <= 3 * Math.PI / 8) { // Down-Right
+                } else if (angle > Math.PI / 4 && angle <= 3 * Math.PI / 4) { // Down (Backward)
                     touchMoveBackward = true;
-                    touchMoveRight = true;
-                } else if (angle > 3 * Math.PI / 8 && angle <= 5 * Math.PI / 8) { // Down
-                    touchMoveBackward = true;
-                } else if (angle > 5 * Math.PI / 8 && angle <= 7 * Math.PI / 8) { // Down-Left
-                    touchMoveBackward = true;
+                } else if (angle > 3 * Math.PI / 4 || angle <= -3 * Math.PI / 4) { // Left
                     touchMoveLeft = true;
-                } else if (angle > 7 * Math.PI / 8 || angle <= -7 * Math.PI / 8) { // Left
-                    touchMoveLeft = true;
-                } else if (angle > -7 * Math.PI / 8 && angle <= -5 * Math.PI / 8) { // Up-Left
+                } else { // Up (Forward)
                     touchMoveForward = true;
-                    touchMoveLeft = true;
-                } else if (angle > -5 * Math.PI / 8 && angle <= -3 * Math.PI / 8) { // Up
-                    touchMoveForward = true;
-                } else if (angle > -3 * Math.PI / 8 && angle <= -Math.PI / 8) { // Up-Right
-                    touchMoveForward = true;
-                    touchMoveRight = true;
                 }
             }
         }
@@ -2400,12 +2403,8 @@
                 if (gameState === 'playing' && e.touches.length === 1) {
                     e.preventDefault(); // Prevent scrolling
                     joystick.active = true;
-                    // Get the initial touch position relative to the joystick base
-                    const rect = joystickBase.getBoundingClientRect();
-                    joystick.startX = rect.left + rect.width / 2;
-                    joystick.startY = rect.top + rect.height / 2;
                     joystickKnob.style.transition = 'none'; // Disable transition during drag
-                    updateJoystick(e);
+                    updateJoystick(e); // Initial update
                 }
             }, { passive: false });
 
@@ -2651,6 +2650,13 @@
             updateLanguageDisplay(); // Initial display updates based on default language
             updateHealthShieldDisplay(); // Ensure health/shield bars are initialized
             updateSettingsDisplay(); // Ensure settings UI reflects initial values
+
+            // Initialize joystick dimensions after elements are rendered
+            if (joystickBase && joystickKnob) {
+                joystick.radius = joystickBase.clientWidth / 2;
+                joystick.knobRadius = joystickKnob.clientWidth / 2;
+                joystick.maxDistance = joystick.radius - joystick.knobRadius;
+            }
 
             // Check initial orientation and set up listeners
             checkOrientation();
