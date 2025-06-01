@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta name="google-site-verification" content="P3YGHZCaE9-ETe_ESuUs491p6Ytg0krlNd_wGW3KECo" />
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
@@ -52,6 +51,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/fflate@0.7.1/umd/index.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
@@ -391,78 +391,170 @@
             box-shadow: 0 0 15px #0cc;
         }
 
-        /* Weapon Selection Screen Styles */
-        #weaponList {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1.5rem;
-            max-width: 900px;
-            width: 90%;
-            margin-top: 2rem;
-            justify-content: center;
+        /* Weapon Selection Screen Styles (NEW) */
+        #weaponSelectScreen.menu-screen {
+            background-color: #1a1a2e; /* Darker background for weapon select */
+            justify-content: flex-start; /* Align items to start */
+            padding-top: 2rem; /* Add some top padding */
         }
-        #weaponList > div {
-            background-color: #2d3748;
-            border-radius: 12px;
-            padding: 1.5rem;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        #weaponList > div:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 0 25px rgba(0, 255, 255, 0.5);
-        }
-        #weaponList h2 {
-            font-size: 2.5rem;
-            font-weight: bold;
-            color: #0ff;
-            margin-bottom: 0.5rem;
-            text-shadow: 0 0 10px #0ff;
-        }
-        #weaponList p {
-            font-size: 1.2rem;
-            color: #e2e8f0;
+        #weaponSelectScreen h1 {
             margin-bottom: 1rem;
         }
-        #weaponList button {
-            padding: 0.75rem 1.5rem;
-            font-size: 1.1rem;
-            border-radius: 8px;
-            font-weight: bold;
-            transition: background-color 0.3s, transform 0.2s;
-            margin-top: 1rem;
-        }
-        #weaponList button.bg-green-600 {
-            background-color: #10B981; /* Tailwind green-500 */
-            color: #fff;
-        }
-        #weaponList button.bg-blue-600 {
-            background-color: #3B82F6; /* Tailwind blue-500 */
-            color: #fff;
-        }
-        #weaponList button.bg-gray-500 {
-            background-color: #6B7280; /* Tailwind gray-500 */
-            color: #cbd5e0;
-        }
-
-        /* Weapon Preview Container */
-        #weaponPreviewContainer {
+        #weaponSelectScreen #container {
+            width: 80%;
+            max-width: 600px;
+            height: 60vh; /* Make 3D view larger */
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
             position: relative;
-            cursor: grab; /* Indicate draggable */
+            margin-bottom: 2rem;
         }
-        #weaponPreviewCanvas {
-            background-color: rgba(0,0,0,0.3); /* Semi-transparent background for canvas */
+        #weaponSelectScreen #container canvas {
+            border-radius: 12px; /* Apply rounded corners to the canvas itself */
         }
-        #weaponPreviewHint {
-            pointer-events: none; /* Allow events to pass through to canvas */
+        #weaponSelectScreen #loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 1.5rem;
+            z-index: 1000;
+            border-radius: 12px; /* Match container border-radius */
+        }
+        #weaponSelectScreen #loading-spinner {
+            border: 8px solid #f3f3f3; /* Light grey */
+            border-top: 8px solid #3498db; /* Blue */
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 2s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #weaponSelectScreen .control-button {
+            background-color: #2563eb; /* Tailwind blue-600 */
+            color: white;
+            font-weight: bold;
+            padding: 0.75rem 1.5rem;
+            border-radius: 9999px; /* rounded-full */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease-in-out;
+        }
+        #weaponSelectScreen .control-button:hover {
+            background-color: #1d4ed8; /* Tailwind blue-700 */
+            transform: scale(1.05);
+            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.2);
+        }
+        #weaponSelectScreen .control-button:disabled {
+            background-color: #6b7280; /* Tailwind gray-500 */
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        #weaponSelectScreen .arrow-button {
+            background-color: #4b5563; /* Tailwind gray-700 */
+            color: white;
+            font-weight: bold;
+            padding: 0.5rem 1rem;
+            border-radius: 9999px; /* rounded-full */
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease-in-out;
+            font-size: 1.25rem;
+        }
+        #weaponSelectScreen .arrow-button:hover {
+            background-color: #374151; /* Tailwind gray-600 */
+            transform: scale(1.05);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        #weaponSelectScreen #damage-bar-container {
+            position: relative; /* Changed from absolute */
+            top: auto; /* Reset top */
+            left: auto; /* Reset left */
+            transform: none; /* Reset transform */
+            width: 80%;
+            max-width: 300px;
+            background-color: #333;
+            border: 2px solid #555;
+            border-radius: 10px;
+            overflow: hidden;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            z-index: 50;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            margin-bottom: 1rem; /* Add margin below bar */
+        }
+        #weaponSelectScreen #damage-fill {
+            height: 100%;
+            background-color: #ef4444; /* Red for damage */
+            width: 0%;
+            transition: width 0.5s ease-in-out;
+        }
+        #weaponSelectScreen #damage-text {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.1rem;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+        }
+        #weaponSelectScreen .weapon-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            space-x-4;
+            z-index: 50;
+            margin-top: 1rem; /* Space between damage bar and buttons */
+        }
+        #weaponSelectScreen #weaponPriceDisplay { /* NEW STYLE FOR PRICE */
+            color: #e2e8f0;
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem; /* Space between price and button */
+            text-align: center;
+            width: 100%;
+            max-width: 300px;
         }
     </style>
 </head>
-<body>
+<body> 
+    <h1>Daftar Game dari RSS Feed</h1>
+  <ul id="game-list"></ul>
+
+  <script>
+    const rssFeedUrl = "https://feeds.gamepix.com/v2/json?sid=R8149&pagination=12&page=1";
+
+    fetch(rssFeedUrl)
+      .then(response => response.json())
+      .then(data => {
+        const gameList = document.getElementById('game-list');
+        data.items.forEach(game => {
+          const li = document.createElement('li');
+          li.innerHTML = `
+            <strong>${game.title}</strong><br/>
+            Kategori: ${game.category}<br/>
+            <img src="${game.banner_image}" alt="${game.title}" width="200"/><br/>
+            <a href="${game.url}" target="_blank">Mainkan Game</a>
+          `;
+          gameList.appendChild(li);
+        });
+      })
+      .catch(error => {
+        console.error('Error fetching RSS Feed:', error);
+      });
+  </script>
     <div class="game-container">
         <div class="game-info">
             <div id="coins">Koin: 0</div>
@@ -511,11 +603,30 @@
 
     <div id="weaponSelectScreen" class="menu-screen" style="display: none;">
         <h1 id="weaponSelectTitle">Pilih Senjata</h1>
-        <div id="weaponPreviewContainer" class="w-full max-w-sm h-64 bg-gray-900 rounded-lg shadow-inner flex items-center justify-center relative my-4">
-            <canvas id="weaponPreviewCanvas" class="w-full h-full rounded-lg"></canvas>
-            <p id="weaponPreviewHint" class="absolute text-gray-400 text-sm" style="display: none;"></p> </div>
-        <div id="weaponList">
+        <div id="loading-overlay" class="rounded-lg">
+            <div id="loading-spinner"></div>
+            <p>Memuat model 3D...</p>
+        </div>
+
+        <div id="damage-bar-container" class="rounded-full">
+            <div id="damage-fill" class="rounded-full"></div>
+            <div id="damage-text"></div>
+        </div>
+
+        <div id="container" class="relative"></div>
+
+        <div class="weapon-controls">
+            <button id="prevWeaponBtn" class="arrow-button">
+                &lt;
+            </button>
+            <div class="flex flex-col items-center"> <div id="weaponPriceDisplay"></div> <button id="buyWeaponBtn" class="control-button">
+                    Beli Senjata Ini
+                </button>
             </div>
+            <button id="nextWeaponBtn" class="arrow-button">
+                &gt;
+            </button>
+        </div>
         <button id="backToMainMenuFromWeapon">Kembali ke Menu Utama</button>
     </div>
 
@@ -560,13 +671,20 @@
         const weaponSelectButton = document.getElementById('weaponSelectButton'); // Renamed
         const settingsButton = document.getElementById('settingsButton');
 
-        // Get weapon select elements
+        // Get weapon select elements (NEW)
         const weaponSelectScreen = document.getElementById('weaponSelectScreen');
         const weaponSelectTitle = document.getElementById('weaponSelectTitle');
-        const weaponList = document.getElementById('weaponList');
         const backToMainMenuFromWeaponButton = document.getElementById('backToMainMenuFromWeapon');
-        const weaponPreviewCanvas = document.getElementById('weaponPreviewCanvas'); // New
-        const weaponPreviewHint = document.getElementById('weaponPreviewHint'); // New
+        
+        // NEW 3D PREVIEW ELEMENTS
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const damageFill = document.getElementById('damage-fill');
+        const damageText = document.getElementById('damage-text');
+        const buyWeaponBtn = document.getElementById('buyWeaponBtn');
+        const prevWeaponBtn = document.getElementById('prevWeaponBtn');
+        const nextWeaponBtn = document.getElementById('nextWeaponBtn');
+        const weaponPreviewContainer = document.getElementById('container'); // Renamed from weaponPreviewContainer
+        const weaponPriceDisplay = document.getElementById('weaponPriceDisplay'); // NEW: Price display element
 
         // Get settings elements
         const settingsScreen = document.getElementById('settingsScreen');
@@ -729,15 +847,20 @@
         let masterVolume = 0.5; // Default volume (0.0 to 1.0)
         let currentLanguage = 'id'; // 'id' for Indonesian, 'en' for English
 
-        // Weapon data
-        const weapons = [
-            // Pistol sekarang adalah senjata default dengan harga 0 koin dan kerusakan 15
-            { id: 'pistol', name: 'Pistol', damage: 15, price: 0, current: true, modelPath: 'https://raw.githubusercontent.com/fajrigans/assetgametembak/main/ImageToStl.com_buatkan_senjata_temba_0531174819_texture_fbx.fbx' },
-            // AR-15 sekarang berharga 1500 koin dan memiliki kerusakan 20
-            { id: 'ar15', name: 'AR-15 Style Rifle', damage: 20, price: 1500, current: false, modelPath: 'https://raw.githubusercontent.com/fajrigans/assetgametembak/main/ImageToStl.com_buatkan_senjata_temba_0531124219_texture_fbx.fbx' }
+        // Weapon data (Combined and adapted from provided code)
+        // Note: The 'name' property here is for internal use/translation key.
+        // The display name will come from translations[currentLanguage].weaponNames.
+        const allWeaponsData = [
+            { id: 'pistol', name: 'Pistol', damage: 15, price: 0, modelPath: 'https://raw.githubusercontent.com/fajrigans/assetgametembak/main/ImageToStl.com_buatkan_senjata_temba_0531174819_texture_fbx.fbx' },
+            { id: 'ar15', name: 'AR-15 Style Rifle', damage: 20, price: 1500, modelPath: 'https://raw.githubusercontent.com/fajrigans/assetgametembak/main/ImageToStl.com_buatkan_senjata_temba_0531124219_texture_fbx.fbx' }
         ];
-        // Temukan senjata yang saat ini dipilih (awalnya pistol)
-        let currentWeapon = weapons.find(w => w.current); 
+        let weapons = []; // This will store the game's weapon state (owned, current)
+        let currentWeapon; // Will be set after loading weapons
+
+        // Weapon Preview 3D variables (renamed for clarity)
+        let previewScene, previewCamera, previewRenderer, previewControls;
+        let currentPreviewModel = null;
+        let currentWeaponIndex = 0; // Index for weaponModels array
 
         const translations = {
             'id': {
@@ -750,8 +873,10 @@
                 'backToMainMenu': 'Kembali ke Menu Utama',
                 'weaponSelectTitle': 'Pilih Senjata',
                 'weaponDamage': 'Kerusakan:', // New
-                'buyButton': 'Beli', // New
+                'buyButton': 'Beli Senjata Ini', // New
+                'equipButton': 'Pilih', // New
                 'currentWeapon': 'Terpilih', // New
+                'ownedButton': 'Miliki', // NEW TRANSLATION
                 'settingsTitle': 'Pengaturan',
                 'settingsPlaceholder': 'Atur opsi game di sini.',
                 'mouseSensitivityLabel': 'Sensitivitas Mouse:',
@@ -766,6 +891,10 @@
                 'shootButton': 'Tembak',
                 'gamePaused': 'Game Dijeda.',
                 'weaponPreviewNoModel': 'Model senjata tidak tersedia.', // New
+                'loadingModel': 'Memuat model 3D...', // New
+                'failedToLoadModel': 'Gagal memuat model. Periksa konsol untuk detail.', // New
+                'weaponBought': 'Senjata berhasil dibeli!', // New
+                'notEnoughCoins': 'Koin tidak cukup!', // New
                 'weaponNames': { // New nested object for weapon names
                     'ar15': 'Senapan Gaya AR-15',
                     'pistol': 'Pistol'
@@ -781,8 +910,10 @@
                 'backToMainMenu': 'Back to Main Menu',
                 'weaponSelectTitle': 'Select Weapon',
                 'weaponDamage': 'Damage:', // New
-                'buyButton': 'Buy', // New
+                'buyButton': 'Buy This Weapon', // New
+                'equipButton': 'Equip', // New
                 'currentWeapon': 'Equipped', // New
+                'ownedButton': 'Owned', // NEW TRANSLATION
                 'settingsTitle': 'Settings',
                 'settingsPlaceholder': 'Adjust game options here.',
                 'mouseSensitivityLabel': 'Mouse Sensitivity:',
@@ -797,22 +928,16 @@
                 'shootButton': 'Shoot',
                 'gamePaused': 'Game Paused.',
                 'weaponPreviewNoModel': 'Weapon model not available.', // New
+                'loadingModel': 'Loading 3D model...', // New
+                'failedToLoadModel': 'Failed to load model. Check console for details.', // New
+                'weaponBought': 'Weapon successfully purchased!', // New
+                'notEnoughCoins': 'Not enough coins!', // New
                 'weaponNames': { // New nested object for weapon names
                     'ar15': 'AR-15 Style Rifle',
                     'pistol': 'Pistol'
                 }
             }
         };
-
-        // Weapon Preview 3D variables
-        let weaponPreviewScene, weaponPreviewCamera, weaponPreviewRenderer;
-        let currentPreviewModel = null;
-        let previewRotationX = 0;
-        let previewRotationY = 0;
-        let isPreviewDragging = false;
-        let prevPreviewMouseX = 0;
-        let prevPreviewMouseY = 0;
-        const previewRotationSpeed = 0.005; // Adjust as needed
 
         // Helper function to play sound only if audio context is running and valid
         function playSound(synth, note, duration) {
@@ -894,7 +1019,8 @@
 
             // Load Weapon Model (FBX) - This is for the in-game gun
             // This will be loaded dynamically based on currentWeapon.modelPath
-            loadInGameWeaponModel(currentWeapon.modelPath);
+            // This is called in initializeGameElements after currentWeapon is set
+            // loadInGameWeaponModel(currentWeapon.modelPath);
 
 
             // Add initial environment assets
@@ -935,6 +1061,7 @@
                         if (child.material) {
                             if (Array.isArray(child.material)) {
                                 child.material.forEach(mat => {
+                                    // Ensure material is a PhongMaterial for lighting
                                     child.material = new THREE.MeshPhongMaterial({ color: mat.color });
                                     mat.needsUpdate = true;
                                 });
@@ -1088,8 +1215,9 @@
             enemyGroup.add(healthBarForeground);
             enemyGroup.userData.healthBar = healthBarForeground;
 
-            enemyGroup.userData.maxHealth = 30; // ENEMY_MAX_HEALTH
-            enemyGroup.userData.currentHealth = 30; // ENEMY_MAX_HEALTH
+            // --- PERUBAHAN DI SINI: Kesehatan musuh ditingkatkan menjadi 60 ---
+            enemyGroup.userData.maxHealth = 60; 
+            enemyGroup.userData.currentHealth = 60; 
 
             return enemyGroup;
         }
@@ -1112,6 +1240,10 @@
             });
         }
 
+        // Function to save weapon data to localStorage
+        function saveWeaponsToLocalStorage() {
+            localStorage.setItem('ownedWeapons', JSON.stringify(weapons));
+        }
 
         // --- Game Initialization ---
         function initializeGameElements() {
@@ -1121,10 +1253,63 @@
 
             bullets = [];
             enemies = [];
+            
             // Load coins from localStorage, default to 0 if not found
             const savedCoins = localStorage.getItem('gameCoins');
             coins = savedCoins ? parseInt(savedCoins) : 0;
             
+            // Load weapons from localStorage
+            const savedWeapons = localStorage.getItem('ownedWeapons');
+            if (savedWeapons) {
+                weapons = JSON.parse(savedWeapons);
+                // Ensure allWeaponsData weapons are present in 'weapons' array with correct 'owned' status
+                allWeaponsData.forEach(defaultWeapon => {
+                    const existingWeapon = weapons.find(w => w.id === defaultWeapon.id);
+                    if (!existingWeapon) {
+                        // Add new weapons from allWeaponsData if they don't exist in saved data
+                        weapons.push({ ...defaultWeapon, owned: false, current: false });
+                    } else {
+                        // Update existing weapon properties (like damage, modelPath) from default, but keep owned/current status
+                        existingWeapon.damage = defaultWeapon.damage;
+                        existingWeapon.modelPath = defaultWeapon.modelPath;
+                        existingWeapon.price = defaultWeapon.price;
+                    }
+                });
+                // Remove any weapons from 'weapons' that are no longer in 'allWeaponsData'
+                weapons = weapons.filter(w => allWeaponsData.some(dw => dw.id === w.id));
+
+                // Ensure 'current' status is consistent: only one weapon should be current.
+                // If multiple are current or none, reset to pistol.
+                const currentlyEquipped = weapons.filter(w => w.current);
+                if (currentlyEquipped.length !== 1) {
+                    weapons.forEach(w => w.current = false); // Clear all 'current' flags
+                    const pistol = weapons.find(w => w.id === 'pistol');
+                    if (pistol) {
+                        pistol.current = true;
+                        pistol.owned = true; // Ensure pistol is always owned
+                    } else { // Fallback if pistol somehow not found (shouldn't happen with defaultWeapons)
+                        weapons[0].current = true;
+                        weapons[0].owned = true;
+                    }
+                } else {
+                    // If exactly one is current, ensure pistol is owned
+                    const pistol = weapons.find(w => w.id === 'pistol');
+                    if (pistol) pistol.owned = true;
+                }
+
+            } else {
+                // First time loading, use default weapons and mark pistol as owned/current
+                weapons = JSON.parse(JSON.stringify(allWeaponsData)); // Deep copy
+                weapons.forEach(w => {
+                    w.owned = (w.id === 'pistol'); // Only pistol is owned by default
+                    w.current = (w.id === 'pistol'); // Only pistol is current by default
+                });
+                saveWeaponsToLocalStorage(); // Save defaults
+            }
+            currentWeapon = weapons.find(w => w.current);
+            BULLET_DAMAGE = currentWeapon.damage; // Set initial damage based on loaded weapon
+            loadInGameWeaponModel(currentWeapon.modelPath); // Load the in-game model
+
             playerHealth = playerMaxHealth;
             playerShield = playerMaxShield;
             lastEnemySpawnTime = Date.now();
@@ -1142,7 +1327,7 @@
         // Fungsi untuk memulai permainan (dari awal)
         function startGame() { // This function is for a full restart
             console.log("startGame called (full restart)");
-            initializeGameElements(); // Resets coins, health, enemies, player position
+            initializeGameElements(); // Resets coins, health, enemies, player position, and loads weapons
             gameOver = false;
             gameState = 'playing';
             gameStartedAtLeastOnce = true;
@@ -1336,8 +1521,32 @@
                         bullets.splice(i, 1);
 
                         // Apply damage and update health bar
-                        // Kerusakan peluru kini disesuaikan dengan nilai BULLET_DAMAGE saat ini
                         enemy.mesh.userData.currentHealth -= (isZoomed ? (BULLET_DAMAGE * ZOOMED_BULLET_DAMAGE_MULTIPLIER) : BULLET_DAMAGE);
+                        
+                        // --- Efek Kilatan (Flash Effect) pada Musuh ---
+                        enemy.mesh.traverse((child) => {
+                            if (child.isMesh && child.material) {
+                                if (Array.isArray(child.material)) {
+                                    child.material.forEach(mat => mat.color.setHex(0xFFFFFF)); // Kilat putih
+                                } else {
+                                    child.material.color.setHex(0xFFFFFF); // Kilat putih
+                                }
+                            }
+                        });
+
+                        setTimeout(() => {
+                            enemy.mesh.traverse((child) => {
+                                if (child.isMesh && child.material) {
+                                    if (Array.isArray(child.material)) {
+                                        child.material.forEach(mat => mat.color.setHex(ENEMY_COLOR)); // Kembali ke warna merah asli
+                                    } else {
+                                        child.material.color.setHex(ENEMY_COLOR); // Kembali ke warna merah asli
+                                    }
+                                }
+                            });
+                        }, 100); // Kilat selama 100ms
+                        // --- Akhir Efek Kilatan ---
+
                         const healthRatio = enemy.mesh.userData.currentHealth / enemy.mesh.userData.maxHealth;
 
                         enemy.mesh.userData.healthBar.scale.x = healthRatio;
@@ -1423,7 +1632,7 @@
             updateLanguageDisplay();
             // Re-render weapon list to update language
             if (gameState === 'weaponSelect') {
-                updateWeaponList();
+                updateWeaponPreviewUI(); // Update UI elements on weapon select screen
             }
         }
 
@@ -1509,7 +1718,10 @@
             hideAllScreens();
             weaponSelectScreen.style.display = 'flex';
             gameState = 'weaponSelect';
-            updateWeaponList(); // Populate weapon list and load preview when screen is shown
+            // Ensure preview canvas is correctly sized when it becomes visible
+            resizeRenderer(); // This will resize both main and preview renderers
+            initWeaponPreview3D(); // Initialize weapon preview scene
+            loadWeaponForPreview(currentWeaponIndex); // Load the current weapon for preview
         }
 
         function showSettings() {
@@ -1519,227 +1731,233 @@
             updateSettingsDisplay(); // Update settings UI when shown
         }
 
-        // --- Weapon Selection Logic ---
-        function updateWeaponList() {
-            weaponList.innerHTML = ''; // Clear previous list
-            weapons.forEach(weapon => {
-                const weaponDiv = document.createElement('div');
-                weaponDiv.className = 'flex flex-col items-center p-4 bg-gray-800 rounded-lg shadow-md w-64';
-                
-                const weaponName = document.createElement('h2');
-                weaponName.className = 'text-2xl font-bold text-white mb-2';
-                weaponName.textContent = translations[currentLanguage].weaponNames[weapon.id]; // Use translated name
-                weaponDiv.appendChild(weaponName);
-
-                const damageText = document.createElement('p');
-                damageText.className = 'text-lg text-gray-300';
-                damageText.textContent = `${translations[currentLanguage].weaponDamage} ${weapon.damage}`;
-                weaponDiv.appendChild(damageText);
-
-                // Simple damage bar
-                const damageBarContainer = document.createElement('div');
-                damageBarContainer.className = 'w-full h-4 bg-gray-600 rounded-full mt-2 overflow-hidden';
-                const damageBarFill = document.createElement('div');
-                damageBarFill.className = 'h-full bg-red-500';
-                // Scale damage bar relative to max possible damage (e.g., 50)
-                damageBarFill.style.width = `${(weapon.damage / 50) * 100}%`; 
-                damageBarContainer.appendChild(damageBarFill);
-                weaponDiv.appendChild(damageBarContainer);
-
-                const buyButton = document.createElement('button');
-                buyButton.className = 'mt-4 px-4 py-2 rounded-md font-bold transition-colors';
-                if (weapon.current) {
-                    buyButton.textContent = translations[currentLanguage].currentWeapon;
-                    buyButton.className += ' bg-green-600 text-white cursor-default';
-                    buyButton.disabled = true;
-                } else if (coins >= weapon.price) { // Changed from score
-                    buyButton.textContent = `${translations[currentLanguage].buyButton} (${weapon.price})`;
-                    buyButton.className += ' bg-blue-600 hover:bg-blue-700 text-white';
-                    buyButton.onclick = () => buyWeapon(weapon);
-                } else {
-                    buyButton.textContent = `${translations[currentLanguage].buyButton} (${weapon.price})`;
-                    buyButton.className += ' bg-gray-500 text-gray-300 cursor-not-allowed';
-                    buyButton.disabled = true;
-                }
-                weaponDiv.appendChild(buyButton);
-                weaponList.appendChild(weaponDiv);
-            });
-
-            // Load the model for the currently selected weapon into the preview
-            const selectedWeapon = weapons.find(w => w.current);
-            if (selectedWeapon && selectedWeapon.modelPath) {
-                loadWeaponModelForPreview(selectedWeapon.modelPath);
-            } else {
-                // Clear preview if no model path or no weapon selected
-                if (currentPreviewModel) {
-                    weaponPreviewScene.remove(currentPreviewModel);
-                    currentPreviewModel = null;
-                }
-                weaponPreviewHint.textContent = translations[currentLanguage].weaponPreviewNoModel;
-                weaponPreviewHint.style.display = 'block'; // Show hint if no model
-            }
-        }
-
-        function buyWeapon(weaponToBuy) {
-            if (coins >= weaponToBuy.price) { // Changed from score
-                coins -= weaponToBuy.price; // Changed from score
-                currentWeapon.current = false; // Deselect old weapon
-                weaponToBuy.current = true; // Select new weapon
-                currentWeapon = weaponToBuy;
-                BULLET_DAMAGE = currentWeapon.damage; // Update global damage based on new weapon's damage
-                updateCoinsDisplay(); // Refresh weapon list display and preview
-                updateWeaponList(); // Re-render weapon list to reflect changes
-                loadInGameWeaponModel(currentWeapon.modelPath); // Load new in-game model
-                console.log(`Weapon ${weaponToBuy.name} bought!`);
-            } else {
-                console.log("Not enough money to buy this weapon!");
-            }
-        }
-
-        // --- Weapon Preview 3D Functions ---
+        // --- Weapon Selection Logic (NEW) ---
+        /**
+         * Fungsi untuk menginisialisasi scene 3D untuk pratinjau senjata
+         */
         function initWeaponPreview3D() {
-            const previewCanvas = document.getElementById('weaponPreviewCanvas');
-            weaponPreviewScene = new THREE.Scene(); // Initialize scene here
-            weaponPreviewCamera = new THREE.PerspectiveCamera(75, previewCanvas.clientWidth / previewCanvas.clientHeight, 0.1, 100);
-            weaponPreviewRenderer = new THREE.WebGLRenderer({ canvas: previewCanvas, alpha: true, antialias: true }); // Initialize renderer here
-            weaponPreviewRenderer.setSize(previewCanvas.clientWidth, previewCanvas.clientHeight);
-            weaponPreviewRenderer.setPixelRatio(window.devicePixelRatio);
+            // Hanya inisialisasi jika belum ada
+            if (previewScene) return;
 
-            // Lights for the preview scene
-            const ambientLight = new THREE.AmbientLight(0x404040, 2); // Brighter ambient
-            weaponPreviewScene.add(ambientLight);
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-            directionalLight.position.set(5, 5, 5);
-            weaponPreviewScene.add(directionalLight);
-            const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.5);
-            directionalLight2.position.set(-5, -5, -5);
-            weaponPreviewScene.add(directionalLight2);
+            const previewCanvas = document.createElement('canvas');
+            previewCanvas.id = 'weaponPreviewCanvas'; // Assign an ID for easier reference
+            weaponPreviewContainer.appendChild(previewCanvas); // Append to the new container
 
-            // Camera position for preview
-            weaponPreviewCamera.position.z = 2;
-            weaponPreviewCamera.position.y = 0.5;
+            previewScene = new THREE.Scene();
+            previewScene.background = new THREE.Color(0x1a1a2e); // Latar belakang scene
 
-            // Event listeners for preview rotation
-            previewCanvas.addEventListener('mousedown', (e) => {
-                isPreviewDragging = true;
-                prevPreviewMouseX = e.clientX;
-                prevPreviewMouseY = e.clientY;
-                previewCanvas.style.cursor = 'grabbing';
-            });
-            previewCanvas.addEventListener('mousemove', (e) => {
-                if (isPreviewDragging) {
-                    const deltaX = e.clientX - prevPreviewMouseX;
-                    const deltaY = e.clientY - prevPreviewMouseY;
-                    previewRotationY += deltaX * previewRotationSpeed;
-                    previewRotationX += deltaY * previewRotationSpeed;
-                    // Limit vertical rotation to prevent flipping
-                    previewRotationX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, previewRotationX));
-                    prevPreviewMouseX = e.clientX;
-                    prevPreviewMouseY = e.clientY;
-                }
-            });
-            previewCanvas.addEventListener('mouseup', () => {
-                isPreviewDragging = false;
-                previewCanvas.style.cursor = 'grab';
-            });
-            previewCanvas.addEventListener('mouseleave', () => {
-                isPreviewDragging = false;
-                previewCanvas.style.cursor = 'grab';
-            });
+            previewCamera = new THREE.PerspectiveCamera(75, weaponPreviewContainer.clientWidth / weaponPreviewContainer.clientHeight, 0.1, 1000);
+            previewCamera.position.set(0, 0, 5);
 
-            // Touch events for mobile
-            previewCanvas.addEventListener('touchstart', (e) => {
-                if (e.touches.length === 1) {
-                    isPreviewDragging = true;
-                    prevPreviewMouseX = e.touches[0].clientX;
-                    prevPreviewMouseY = e.touches[0].clientY;
-                }
-            }, { passive: false });
-            previewCanvas.addEventListener('touchmove', (e) => {
-                if (isPreviewDragging && e.touches.length === 1) {
-                    e.preventDefault(); // Prevent scrolling
-                    const deltaX = e.touches[0].clientX - prevPreviewMouseX;
-                    const deltaY = e.touches[0].clientY - prevPreviewMouseY;
-                    previewRotationY += deltaX * previewRotationSpeed;
-                    previewRotationX += deltaY * previewRotationSpeed;
-                    previewRotationX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, previewRotationX));
-                    prevPreviewMouseX = e.touches[0].clientX;
-                    prevPreviewMouseY = e.touches[0].clientY;
-                }
-            }, { passive: false });
-            previewCanvas.addEventListener('touchend', () => {
-                isPreviewDragging = false;
-            });
-            previewCanvas.addEventListener('touchcancel', () => {
-                isPreviewDragging = false;
-            });
+            previewRenderer = new THREE.WebGLRenderer({ canvas: previewCanvas, antialias: true, alpha: true });
+            previewRenderer.setSize(weaponPreviewContainer.clientWidth, weaponPreviewContainer.clientHeight);
+            previewRenderer.setPixelRatio(window.devicePixelRatio);
 
-            // Initial cursor style
-            previewCanvas.style.cursor = 'grab';
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            previewScene.add(ambientLight);
 
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(5, 10, 7.5);
+            previewScene.add(directionalLight);
+
+            previewControls = new THREE.OrbitControls(previewCamera, previewRenderer.domElement);
+            previewControls.enableDamping = true;
+            previewControls.dampingFactor = 0.05;
+            previewControls.screenSpacePanning = false;
+            previewControls.minDistance = 1;
+            previewControls.maxDistance = 10;
+            previewControls.maxPolarAngle = Math.PI / 2;
+
+            // Start the preview animation loop
             animateWeaponPreview();
         }
 
-        function animateWeaponPreview() {
-            requestAnimationFrame(animateWeaponPreview);
+        /**
+         * Fungsi untuk memuat model senjata untuk pratinjau
+         * @param {number} index - Indeks model senjata dalam array allWeaponsData
+         */
+        function loadWeaponForPreview(index) {
+            loadingOverlay.style.display = 'flex';
+            loadingOverlay.querySelector('p').textContent = translations[currentLanguage].loadingModel;
 
             if (currentPreviewModel) {
-                currentPreviewModel.rotation.y = previewRotationY;
-                currentPreviewModel.rotation.x = previewRotationX;
-            }
-            weaponPreviewRenderer.render(weaponPreviewScene, weaponPreviewCamera);
-        }
-
-        function loadWeaponModelForPreview(weaponModelPath) {
-            if (currentPreviewModel) {
-                weaponPreviewScene.remove(currentPreviewModel);
-                currentPreviewModel = null;
-            }
-
-            if (!weaponModelPath) {
-                console.warn("No model path provided for weapon preview.");
-                weaponPreviewHint.textContent = translations[currentLanguage].weaponPreviewNoModel;
-                weaponPreviewHint.style.display = 'block'; // Show hint if no model
-                return;
-            }
-
-            weaponPreviewHint.textContent = "Memuat model...";
-            weaponPreviewHint.style.display = 'block'; // Show loading hint
-
-            const fbxLoader = new THREE.FBXLoader();
-            fbxLoader.load(weaponModelPath, (fbx) => {
-                currentPreviewModel = fbx;
-                // Adjust scale and position for preview
-                currentPreviewModel.scale.set(0.01, 0.01, 0.01); // Example scale, adjust as needed
-                currentPreviewModel.position.set(0, 0, 0); // Center the model
-                currentPreviewModel.rotation.set(0, 0, 0); // Reset initial rotation
-
-                currentPreviewModel.traverse((child) => {
+                previewScene.remove(currentPreviewModel);
+                currentPreviewModel.traverse(function (child) {
                     if (child.isMesh) {
-                        // Ensure materials are compatible with Phong (for lighting)
-                        if (Array.isArray(child.material)) {
-                            child.material.forEach(mat => {
-                                mat.needsUpdate = true; // Ensure material updates
-                                if (!mat.color) mat.color = new THREE.Color(0xAAAAAA); // Default color if none
-                                child.material = new THREE.MeshPhongMaterial({ color: mat.color });
-                            });
-                        } else {
-                            if (!child.material.color) child.material.color = new THREE.Color(0xAAAAAA); // Default color if none
-                            child.material = new THREE.MeshPhongMaterial({ color: child.material.color });
-                            child.material.needsUpdate = true; // Ensure material updates
+                        if (child.geometry) child.geometry.dispose();
+                        if (child.material) {
+                            if (Array.isArray(child.material)) {
+                                child.material.forEach(m => m.dispose());
+                            } else {
+                                child.material.dispose();
+                            }
                         }
                     }
                 });
+                currentPreviewModel = null;
+            }
 
-                weaponPreviewScene.add(currentPreviewModel);
-                weaponPreviewHint.style.display = 'none'; // Hide hint once model is loaded
-                previewRotationX = 0; // Reset rotation when new model is loaded
-                previewRotationY = 0;
-            }, undefined, (error) => {
-                console.error("Error loading weapon preview FBX model:", error);
-                weaponPreviewHint.textContent = translations[currentLanguage].weaponPreviewNoModel;
-                weaponPreviewHint.style.display = 'block'; // Show error hint
-            });
+            const weaponData = allWeaponsData[index];
+            const fbxModelUrl = weaponData.modelPath;
+            const loader = new THREE.FBXLoader();
+            loader.load(
+                fbxModelUrl,
+                function (object) {
+                    loadingOverlay.style.display = 'none';
+
+                    object.scale.set(0.01, 0.01, 0.01); 
+                    object.position.set(0, 0, 0);
+
+                    currentPreviewModel = object;
+                    previewScene.add(object);
+
+                    updateDamageBar(weaponData.damage);
+                    updateBuyButtonState(weaponData);
+
+                    const box = new THREE.Box3().setFromObject(object);
+                    const center = box.getCenter(new THREE.Vector3());
+                    const size = box.getSize(new THREE.Vector3());
+
+                    const maxDim = Math.max(size.x, size.y, size.z);
+                    const fov = previewCamera.fov * (Math.PI / 180);
+                    let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+                    cameraZ *= 1.5;
+
+                    previewCamera.position.set(center.x, center.y, center.z + cameraZ);
+                    previewControls.target.copy(center);
+                    previewControls.update();
+                },
+                function (xhr) {
+                    const progress = (xhr.loaded / xhr.total) * 100;
+                    loadingOverlay.querySelector('p').textContent = `${translations[currentLanguage].loadingModel} ${progress.toFixed(0)}%`;
+                },
+                function (error) {
+                    console.error('Terjadi kesalahan saat memuat model FBX:', error);
+                    loadingOverlay.innerHTML = `<p class="text-red-500">${translations[currentLanguage].failedToLoadModel}</p>`;
+                }
+            );
+        }
+
+        /**
+         * Fungsi untuk memperbarui tampilan damage bar
+         * @param {number} damageValue - Nilai damage (0-100)
+         */
+        function updateDamageBar(damageValue) {
+            damageFill.style.width = `${damageValue}%`;
+            damageText.textContent = `${translations[currentLanguage].weaponDamage} ${damageValue}`;
+        }
+
+        /**
+         * Fungsi untuk memperbarui status tombol beli/pilih
+         * @param {object} weaponData - Objek data senjata dari allWeaponsData
+         */
+        function updateBuyButtonState(weaponData) {
+            const gameWeapon = weapons.find(w => w.id === weaponData.id);
+            
+            // Defensive check: If gameWeapon is not found, something is wrong with data initialization.
+            if (!gameWeapon) {
+                console.error("Error: gameWeapon not found in 'weapons' array for ID:", weaponData.id);
+                weaponPriceDisplay.textContent = "Error"; // Clear price
+                buyWeaponBtn.textContent = "Error";
+                buyWeaponBtn.disabled = true;
+                buyWeaponBtn.classList.remove('bg-blue-600', 'bg-purple-600', 'bg-gray-500', 'bg-green-700', 'bg-green-600');
+                buyWeaponBtn.classList.add('bg-red-500'); // Indicate error
+                return; // Exit the function to prevent further errors
+            }
+
+            // Update price display
+            if (weaponData.price === 0) {
+                weaponPriceDisplay.textContent = translations[currentLanguage].ownedButton; // If price is 0, it's the default pistol
+            } else {
+                weaponPriceDisplay.textContent = `${weaponData.price} ${translations[currentLanguage].coins}`;
+            }
+
+            if (gameWeapon.current) {
+                buyWeaponBtn.textContent = translations[currentLanguage].currentWeapon;
+                buyWeaponBtn.disabled = true;
+                buyWeaponBtn.classList.remove('bg-blue-600', 'bg-purple-600', 'bg-gray-500', 'bg-green-700'); // Remove all others
+                buyWeaponBtn.classList.add('bg-green-600');
+            } else if (gameWeapon.owned) {
+                buyWeaponBtn.textContent = translations[currentLanguage].ownedButton; // Changed to "Miliki"
+                buyWeaponBtn.disabled = false; // Can still click to equip
+                buyWeaponBtn.classList.remove('bg-green-600', 'bg-purple-600', 'bg-gray-500', 'bg-blue-600'); // Remove all others
+                buyWeaponBtn.classList.add('bg-green-700'); // Darker green for owned but not current
+            } else if (coins >= weaponData.price) {
+                buyWeaponBtn.textContent = `${translations[currentLanguage].buyButton}`; // No price in button text, price is above
+                buyWeaponBtn.disabled = false;
+                buyWeaponBtn.classList.remove('bg-green-600', 'bg-blue-600', 'bg-gray-500', 'bg-green-700'); // Remove all others
+                buyWeaponBtn.classList.add('bg-purple-600');
+            } else {
+                buyWeaponBtn.textContent = `${translations[currentLanguage].buyButton}`; // No price in button text, price is above
+                buyWeaponBtn.disabled = true;
+                buyWeaponBtn.classList.remove('bg-green-600', 'bg-blue-600', 'bg-purple-600', 'bg-green-700'); // Remove all others
+                buyWeaponBtn.classList.add('bg-gray-500');
+            }
+        }
+
+        /**
+         * Fungsi untuk menampilkan senjata sebelumnya
+         */
+        function showPreviousWeapon() {
+            currentWeaponIndex = (currentWeaponIndex - 1 + allWeaponsData.length) % allWeaponsData.length;
+            loadWeaponForPreview(currentWeaponIndex);
+        }
+
+        /**
+         * Fungsi untuk menampilkan senjata berikutnya
+         */
+        function showNextWeapon() {
+            currentWeaponIndex = (currentWeaponIndex + 1) % allWeaponsData.length;
+            loadWeaponForPreview(currentWeaponIndex);
+        }
+
+        /**
+         * Fungsi untuk menangani aksi beli/pilih senjata
+         */
+        function buyWeapon() {
+            const weaponToProcess = allWeaponsData[currentWeaponIndex];
+            const gameWeapon = weapons.find(w => w.id === weaponToProcess.id);
+
+            // Defensive check
+            if (!gameWeapon) {
+                console.error("Error: gameWeapon not found in 'weapons' array for ID:", weaponToProcess.id);
+                showMessageBox("Error processing weapon. Please restart the game.");
+                return; // Exit the function
+            }
+
+            if (gameWeapon.owned) {
+                // If owned, just equip it
+                equipWeapon(gameWeapon);
+                showMessageBox(`${translations[currentLanguage].weaponNames[gameWeapon.id]} ${translations[currentLanguage].currentWeapon.toLowerCase()}!`);
+            } else if (coins >= weaponToProcess.price) {
+                // If not owned and enough coins, buy and equip
+                coins -= weaponToProcess.price;
+                gameWeapon.owned = true;
+                updateCoinsDisplay();
+                equipWeapon(gameWeapon);
+                showMessageBox(`${translations[currentLanguage].weaponBought} (${translations[currentLanguage].weaponNames[gameWeapon.id]})`);
+            } else {
+                // Not enough coins
+                showMessageBox(translations[currentLanguage].notEnoughCoins);
+            }
+            saveWeaponsToLocalStorage();
+            updateBuyButtonState(weaponToProcess); // Update button state after action
+        }
+
+        function equipWeapon(weaponToEquip) {
+            // Deselect old weapon
+            if (currentWeapon) {
+                currentWeapon.current = false;
+            }
+            
+            // Select new weapon
+            weaponToEquip.current = true;
+            currentWeapon = weaponToEquip;
+            BULLET_DAMAGE = currentWeapon.damage; // Update global damage
+            
+            loadInGameWeaponModel(currentWeapon.modelPath); // Load new in-game model
+            saveWeaponsToLocalStorage(); // Save changes
+            console.log(`Weapon ${weaponToEquip.name} equipped!`);
         }
 
 
@@ -1994,6 +2212,32 @@
         langIdButton.addEventListener('click', () => updateLanguage('id'));
         langEnButton.addEventListener('click', () => updateLanguage('en'));
 
+        // NEW WEAPON SELECT BUTTON LISTENERS
+        buyWeaponBtn.addEventListener('click', buyWeapon);
+        prevWeaponBtn.addEventListener('click', showPreviousWeapon);
+        nextWeaponBtn.addEventListener('click', showNextWeapon);
+
+        // Function to update UI elements on weapon select screen based on current language
+        function updateWeaponPreviewUI() {
+            const t = translations[currentLanguage];
+            weaponSelectTitle.textContent = t.weaponSelectTitle;
+            backToMainMenuFromWeaponButton.textContent = t.backToMainMenu;
+            loadingOverlay.querySelector('p').textContent = t.loadingModel;
+            // Update buy button text based on current weapon state
+            const currentPreviewWeaponData = allWeaponsData[currentWeaponIndex];
+            updateBuyButtonState(currentPreviewWeaponData);
+        }
+
+        // --- Animation loop for Weapon Preview (NEW) ---
+        function animateWeaponPreview() {
+            requestAnimationFrame(animateWeaponPreview);
+            if (previewControls) {
+                previewControls.update(); // only required if controls.enableDamping is set to true
+            }
+            if (previewRenderer && previewScene && previewCamera) {
+                previewRenderer.render(previewScene, previewCamera);
+            }
+        }
 
         // Handle window resize
         function resizeRenderer() {
@@ -2007,10 +2251,14 @@
                 camera.updateProjectionMatrix();
             }
             // Resize preview canvas as well
-            if (weaponPreviewCanvas && weaponPreviewRenderer && weaponPreviewCamera) { // Check all preview related objects
-                weaponPreviewRenderer.setSize(weaponPreviewCanvas.clientWidth, weaponPreviewCanvas.clientHeight);
-                weaponPreviewCamera.aspect = weaponPreviewCanvas.clientWidth / weaponPreviewCanvas.clientHeight;
-                weaponPreviewCamera.updateProjectionMatrix();
+            if (previewRenderer && weaponPreviewContainer) { // Check all preview related objects
+                const previewWidth = weaponPreviewContainer.clientWidth;
+                const previewHeight = weaponPreviewContainer.clientHeight;
+                previewRenderer.setSize(previewWidth, previewHeight);
+                if (previewCamera) {
+                    previewCamera.aspect = previewWidth / previewHeight;
+                    previewCamera.updateProjectionMatrix();
+                }
             }
         }
 
@@ -2037,12 +2285,8 @@
             weaponSelectButton.textContent = t.selectWeapon;
             settingsButton.textContent = t.settings;
 
-            // Update weapon select screen
-            weaponSelectTitle.textContent = t.weaponSelectTitle;
-            backToMainMenuFromWeaponButton.textContent = t.backToMainMenu;
-            // Update weapon preview hint - now always hidden
-            weaponPreviewHint.style.display = 'none';
-
+            // Update weapon select screen UI
+            updateWeaponPreviewUI(); // Call this to update titles, buttons, etc.
 
             // Update settings screen
             settingsScreen.querySelector('h1').textContent = t.settingsTitle;
@@ -2076,18 +2320,17 @@
         // Initial setup on window load
         window.onload = function() {
             initThreeJS();
-            initWeaponPreview3D(); // Initialize weapon preview scene
             // Set initial volume for Tone.js
             Tone.Destination.volume.value = (masterVolume * 40) - 40;
-            // Start with main menu visible
-            showMainMenu();
-            // Initial display updates based on default language
-            updateLanguageDisplay();
+            
+            // Initialize game elements FIRST, which loads weapons from localStorage
+            initializeGameElements();
+
+            // Then, update UI elements based on the initialized game state
+            showMainMenu(); // Start with main menu visible
+            updateLanguageDisplay(); // Initial display updates based on default language
             updateHealthShieldDisplay(); // Ensure health/shield bars are initialized
             updateSettingsDisplay(); // Ensure settings UI reflects initial values
-
-            // Set initial bullet damage based on default weapon (pistol)
-            BULLET_DAMAGE = currentWeapon.damage;
 
             // Start the animation loop, but game logic will only run when gameState is 'playing'
             animate();
