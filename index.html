@@ -530,31 +530,6 @@
     </style>
 </head>
 <body> 
-    <h1>Daftar Game dari RSS Feed</h1>
-  <ul id="game-list"></ul>
-
-  <script>
-    const rssFeedUrl = "https://feeds.gamepix.com/v2/json?sid=R8149&pagination=12&page=1";
-
-    fetch(rssFeedUrl)
-      .then(response => response.json())
-      .then(data => {
-        const gameList = document.getElementById('game-list');
-        data.items.forEach(game => {
-          const li = document.createElement('li');
-          li.innerHTML = `
-            <strong>${game.title}</strong><br/>
-            Kategori: ${game.category}<br/>
-            <img src="${game.banner_image}" alt="${game.title}" width="200"/><br/>
-            <a href="${game.url}" target="_blank">Mainkan Game</a>
-          `;
-          gameList.appendChild(li);
-        });
-      })
-      .catch(error => {
-        console.error('Error fetching RSS Feed:', error);
-      });
-  </script>
     <div class="game-container">
         <div class="game-info">
             <div id="coins">Koin: 0</div>
@@ -941,16 +916,35 @@
 
         // Helper function to play sound only if audio context is running and valid
         function playSound(synth, note, duration) {
-            if (Tone.context.state === 'running' && typeof Tone.context.currentTime === 'number' && Tone.context.currentTime >= 0) {
+            // Ensure Tone.js context is running and current time is a valid finite number
+            if (Tone.context.state === 'running' && typeof Tone.context.currentTime === 'number' && Number.isFinite(Tone.context.currentTime)) {
                 try {
                     if (synth && synth.triggerAttackRelease) {
                         synth.triggerAttackRelease(note, duration);
+                    } else {
+                        console.warn("Synth or triggerAttackRelease method is not available.");
                     }
                 } catch (e) {
-                    console.error("Error playing sound:", e);
+                    console.error("Error playing sound during triggerAttackRelease:", e);
+                    // Optionally, try to resume context if it's suspended, though startGame already calls Tone.start()
+                    if (Tone.context.state === 'suspended') {
+                        Tone.context.resume().then(() => {
+                            console.log("AudioContext resumed after error.");
+                        }).catch(resumeErr => {
+                            console.error("Failed to resume AudioContext:", resumeErr);
+                        });
+                    }
                 }
             } else {
-                console.warn("Konteks audio tidak berjalan atau waktu tidak valid, tidak dapat memutar suara.");
+                console.warn("Audio context is not running or current time is invalid, cannot play sound. State:", Tone.context.state, "Current Time:", Tone.context.currentTime);
+                // Attempt to start/resume Tone.js if it's not running
+                if (Tone.context.state !== 'running') {
+                    Tone.start().then(() => {
+                        console.log("AudioContext started/resumed from playSound fallback.");
+                    }).catch(startErr => {
+                        console.error("Failed to start/resume AudioContext from playSound fallback:", startErr);
+                    });
+                }
             }
         }
 
@@ -965,11 +959,24 @@
 
             // Renderer
             const canvas3D = document.getElementById('gameCanvas3D');
-            renderer = new THREE.WebGLRenderer({ canvas: canvas3D, alpha: false, antialias: true }); // Initialize renderer here
-            renderer.setPixelRatio(window.devicePixelRatio); // Set pixel ratio for high DPI displays
-            renderer.shadowMap.enabled = true; // Mengaktifkan peta bayangan
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Jenis bayangan yang lebih lembut
-            resizeRenderer(); // Set initial size
+            if (!canvas3D) {
+                console.error("Canvas element with ID 'gameCanvas3D' not found.");
+                return false; // Indicate failure
+            }
+            try {
+                renderer = new THREE.WebGLRenderer({ canvas: canvas3D, alpha: false, antialias: true }); // Initialize renderer here
+                renderer.setPixelRatio(window.devicePixelRatio); // Set pixel ratio for high DPI displays
+                renderer.shadowMap.enabled = true; // Mengaktifkan peta bayangan
+                renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Jenis bayangan yang lebih lembut
+                resizeRenderer(); // Set initial size
+            } catch (e) {
+                console.error("Error creating WebGLRenderer:", e);
+                // Display a user-friendly message about WebGL failure
+                messageBox.style.display = 'block';
+                messageText.textContent = "Gagal menginisialisasi grafis 3D. Browser Anda mungkin tidak mendukung WebGL atau ada masalah lain. Coba perbarui browser atau perangkat Anda.";
+                restartButton.style.display = 'none'; // Hide restart button for this specific error
+                return false; // Indicate failure
+            }
 
             // Lighting
             const ambientLight = new THREE.AmbientLight(0x606060); // Increased ambient light for better overall visibility
@@ -1017,17 +1024,14 @@
 
             playerYawObject.add(camera); // Make camera a child of playerYawObject
 
-            // Load Weapon Model (FBX) - This is for the in-game gun
-            // This will be loaded dynamically based on currentWeapon.modelPath
-            // This is called in initializeGameElements after currentWeapon is set
-            // loadInGameWeaponModel(currentWeapon.modelPath);
-
 
             // Add initial environment assets
             addEnvironmentAssets();
             
             // Add Skybox
             addSkybox();
+
+            return true; // Indicate success
         }
 
         // Function to load the in-game weapon model
@@ -1248,8 +1252,11 @@
         // --- Game Initialization ---
         function initializeGameElements() {
             console.log("initializeGameElements called");
-            bullets.forEach(b => scene.remove(b.mesh));
-            enemies.forEach(e => scene.remove(e.mesh));
+            // Only attempt to clear scene elements if scene is defined
+            if (scene) {
+                bullets.forEach(b => scene.remove(b.mesh));
+                enemies.forEach(e => scene.remove(e.mesh));
+            }
 
             bullets = [];
             enemies = [];
@@ -1258,70 +1265,93 @@
             const savedCoins = localStorage.getItem('gameCoins');
             coins = savedCoins ? parseInt(savedCoins) : 0;
             
-            // Load weapons from localStorage
+            // 1. Initialize weapons with all default data, setting all to not owned/not current initially
+            // This ensures 'weapons' always contains all possible weapon IDs from 'allWeaponsData'
+            weapons = allWeaponsData.map(weapon => ({ ...weapon, owned: false, current: false }));
+
+            // 2. Load saved weapon states from localStorage and merge
             const savedWeapons = localStorage.getItem('ownedWeapons');
             if (savedWeapons) {
-                weapons = JSON.parse(savedWeapons);
-                // Ensure allWeaponsData weapons are present in 'weapons' array with correct 'owned' status
-                allWeaponsData.forEach(defaultWeapon => {
-                    const existingWeapon = weapons.find(w => w.id === defaultWeapon.id);
-                    if (!existingWeapon) {
-                        // Add new weapons from allWeaponsData if they don't exist in saved data
-                        weapons.push({ ...defaultWeapon, owned: false, current: false });
-                    } else {
-                        // Update existing weapon properties (like damage, modelPath) from default, but keep owned/current status
-                        existingWeapon.damage = defaultWeapon.damage;
-                        existingWeapon.modelPath = defaultWeapon.modelPath;
-                        existingWeapon.price = defaultWeapon.price;
-                    }
-                });
-                // Remove any weapons from 'weapons' that are no longer in 'allWeaponsData'
-                weapons = weapons.filter(w => allWeaponsData.some(dw => dw.id === w.id));
-
-                // Ensure 'current' status is consistent: only one weapon should be current.
-                // If multiple are current or none, reset to pistol.
-                const currentlyEquipped = weapons.filter(w => w.current);
-                if (currentlyEquipped.length !== 1) {
-                    weapons.forEach(w => w.current = false); // Clear all 'current' flags
-                    const pistol = weapons.find(w => w.id === 'pistol');
-                    if (pistol) {
-                        pistol.current = true;
-                        pistol.owned = true; // Ensure pistol is always owned
-                    } else { // Fallback if pistol somehow not found (shouldn't happen with defaultWeapons)
-                        weapons[0].current = true;
-                        weapons[0].owned = true;
-                    }
-                } else {
-                    // If exactly one is current, ensure pistol is owned
-                    const pistol = weapons.find(w => w.id === 'pistol');
-                    if (pistol) pistol.owned = true;
+                try {
+                    const loadedWeapons = JSON.parse(savedWeapons);
+                    loadedWeapons.forEach(loadedWeapon => {
+                        const existingWeapon = weapons.find(w => w.id === loadedWeapon.id);
+                        if (existingWeapon) {
+                            // Update owned and current status from saved data
+                            existingWeapon.owned = loadedWeapon.owned;
+                            existingWeapon.current = loadedWeapon.current;
+                            // Other properties (damage, modelPath, price) are always taken from allWeaponsData
+                        }
+                    });
+                } catch (e) {
+                    console.error("Error parsing saved weapons from localStorage:", e);
+                    // If parsing fails, proceed with default initialization
                 }
-
-            } else {
-                // First time loading, use default weapons and mark pistol as owned/current
-                weapons = JSON.parse(JSON.stringify(allWeaponsData)); // Deep copy
-                weapons.forEach(w => {
-                    w.owned = (w.id === 'pistol'); // Only pistol is owned by default
-                    w.current = (w.id === 'pistol'); // Only pistol is current by default
-                });
-                saveWeaponsToLocalStorage(); // Save defaults
             }
+
+            // 3. Ensure pistol is always owned and current if no other weapon is explicitly current
+            const pistol = weapons.find(w => w.id === 'pistol');
+            if (pistol) {
+                pistol.owned = true; // Pistol is always owned
+
+                // Check if any weapon is currently equipped
+                const currentlyEquipped = weapons.find(w => w.current);
+
+                if (!currentlyEquipped) {
+                    // If no weapon is currently equipped, equip pistol
+                    pistol.current = true;
+                } else if (currentlyEquipped.id !== 'pistol' && !currentlyEquipped.owned) {
+                    // This is a safeguard: if a non-pistol is marked as current but not owned (data inconsistency),
+                    // deselect it and equip the pistol.
+                    console.warn(`Weapon ${currentlyEquipped.id} was current but not owned. Defaulting to pistol.`);
+                    currentlyEquipped.current = false;
+                    pistol.current = true;
+                }
+                // If currentlyEquipped exists and is owned, keep it as is.
+            } else {
+                // Fallback if pistol is somehow not in allWeaponsData (should not happen, but for robustness)
+                console.error("Pistol not found in allWeaponsData. Equipping first available weapon.");
+                if (weapons.length > 0) {
+                    weapons[0].owned = true;
+                    weapons[0].current = true;
+                }
+            }
+            
+            // 4. Save the synchronized state back to localStorage
+            saveWeaponsToLocalStorage();
+
+            // Set currentWeapon based on the finalized 'weapons' array
             currentWeapon = weapons.find(w => w.current);
+            if (!currentWeapon) {
+                // Final fallback: if somehow no weapon is current, pick the first one
+                console.error("No current weapon found after initialization. Defaulting to first weapon.");
+                currentWeapon = weapons[0];
+                currentWeapon.current = true;
+                saveWeaponsToLocalStorage();
+            }
+
             BULLET_DAMAGE = currentWeapon.damage; // Set initial damage based on loaded weapon
             loadInGameWeaponModel(currentWeapon.modelPath); // Load the in-game model
 
+            if (playerYawObject) { // Defensive check
+                playerYawObject.position.set(0, 0, 5);
+                playerYawObject.rotation.y = 0;
+            }
+            if (camera) { // Defensive check
+                camera.rotation.x = 0;
+            }
+            
             playerHealth = playerMaxHealth;
             playerShield = playerMaxShield;
             lastEnemySpawnTime = Date.now();
-            updateCoinsDisplay(); // Changed from updateScoreDisplay
-            updateHealthShieldDisplay(); // Update new health/shield display
-
-            playerYawObject.position.set(0, 0, 5);
-            playerYawObject.rotation.y = 0;
-            camera.rotation.x = 0;
+            updateCoinsDisplay();
+            updateHealthShieldDisplay();
             
-            addEnvironmentAssets();
-            addSkybox();
+            // Only add environment assets and skybox if scene is defined
+            if (scene) {
+                addEnvironmentAssets();
+                addSkybox();
+            }
         }
 
         // Fungsi untuk memulai permainan (dari awal)
@@ -1356,6 +1386,9 @@
 
         // --- Update Game State Functions ---
         function updatePlayer(deltaTime) {
+            // Only update player if playerYawObject is defined
+            if (!playerYawObject) return;
+
             const moveSpeed = PLAYER_BASE_SPEED * deltaTime;
             const originalX = playerYawObject.position.x;
             const originalZ = playerYawObject.position.z;
@@ -1420,6 +1453,9 @@
         }
 
         function updateBullets(deltaTime) {
+            // Only update bullets if scene is defined
+            if (!scene) return;
+
             for (let i = bullets.length - 1; i >= 0; i--) {
                 const bullet = bullets[i];
                 bullet.mesh.position.add(bullet.direction.clone().multiplyScalar(BULLET_SPEED * deltaTime));
@@ -1437,6 +1473,9 @@
         }
 
         function spawnEnemy() {
+            // Only spawn enemy if scene is defined
+            if (!scene) return;
+
             const now = Date.now();
             if (now - lastEnemySpawnTime > ENEMY_SPAWN_INTERVAL) {
                 const x = (Math.random() * (WORLD_WIDTH - ENEMY_SIZE)) - (WORLD_WIDTH / 2 - ENEMY_SIZE / 2);
@@ -1453,6 +1492,9 @@
         }
 
         function updateEnemies(deltaTime) {
+            // Only update enemies if playerYawObject is defined
+            if (!playerYawObject) return;
+
             for (let i = enemies.length - 1; i >= 0; i--) {
                 const enemy = enemies[i];
                 // Move enemy towards player
@@ -1507,6 +1549,9 @@
 
         // --- Collision Detection ---
         function checkCollisions() {
+            // Only check collisions if scene is defined
+            if (!scene) return;
+
             for (let i = bullets.length - 1; i >= 0; i--) {
                 const bullet = bullets[i];
                 const bulletBox = new THREE.Box3().setFromObject(bullet.mesh);
@@ -1670,7 +1715,9 @@
             lastFrameTime = currentTime;
 
             if (gameState !== 'playing') { // Only update game logic if playing
-                renderer.render(scene, camera); // Still render the scene even if paused/menu
+                if (renderer && scene && camera) { // Defensive check for renderer
+                    renderer.render(scene, camera); // Still render the scene even if paused/menu
+                }
                 requestAnimationFrame(animate); // Keep rendering the current state (menu/game over)
                 return;
             }
@@ -1681,7 +1728,9 @@
             updateEnemies(deltaTime);
             checkCollisions();
 
-            renderer.render(scene, camera);
+            if (renderer && scene && camera) { // Defensive check for renderer
+                renderer.render(scene, camera);
+            }
             requestAnimationFrame(animate);
         }
 
@@ -1996,6 +2045,10 @@
         const canvas3D = document.getElementById('gameCanvas3D');
 
         function requestPointerLock() {
+            if (!canvas3D) {
+                console.error("Cannot request pointer lock: canvas3D element not found.");
+                return;
+            }
             canvas3D.requestPointerLock = canvas3D.requestPointerLock || canvas3D.mozRequestPointerLock || canvas3D.webkitRequestPointerLock;
             if (canvas3D.requestPointerLock) {
                 canvas3D.requestPointerLock().then(() => {
@@ -2069,6 +2122,12 @@
 
         // Function to handle bullet shooting logic
         function shootBullet() {
+            // Only shoot if camera is defined
+            if (!camera) {
+                console.warn("Cannot shoot: camera not initialized.");
+                return;
+            }
+
             const bulletMaterial = new THREE.MeshPhongMaterial({ color: BULLET_COLOR });
             const bulletMesh = new THREE.Mesh(BULLET_GEOMETRY, bulletMaterial);
 
@@ -2091,7 +2150,8 @@
         }
 
         document.addEventListener('mousemove', (event) => {
-            if (gameState === 'playing' && isPointerLocked) {
+            // Only apply rotation if playerYawObject and camera are defined
+            if (gameState === 'playing' && isPointerLocked && playerYawObject && camera) {
                 const movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
                 const movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
 
@@ -2114,7 +2174,8 @@
         }, { passive: false });
 
         canvas3D.addEventListener('touchmove', (e) => {
-            if (isTouchDragging && e.touches.length === 1 && e.target === canvas3D) {
+            // Only apply rotation if playerYawObject and camera are defined
+            if (isTouchDragging && e.touches.length === 1 && e.target === canvas3D && playerYawObject && camera) {
                 e.preventDefault();
                 const currentTouchX = e.touches[0].clientX;
                 const currentTouchY = e.touches[0].clientY;
@@ -2319,11 +2380,19 @@
 
         // Initial setup on window load
         window.onload = function() {
-            initThreeJS();
+            // Attempt to initialize Three.js components
+            const threeJSInitialized = initThreeJS();
+
+            // If Three.js initialization failed, stop further game setup
+            if (!threeJSInitialized) {
+                console.error("Three.js initialization failed. Game cannot proceed.");
+                return;
+            }
+
             // Set initial volume for Tone.js
             Tone.Destination.volume.value = (masterVolume * 40) - 40;
             
-            // Initialize game elements FIRST, which loads weapons from localStorage
+            // Initialize game elements, which loads weapons from localStorage
             initializeGameElements();
 
             // Then, update UI elements based on the initialized game state
@@ -2336,6 +2405,31 @@
             animate();
         };
 
+    </script>
+    <h1>Daftar Game dari RSS Feed</h1>
+    <ul id="game-list"></ul>
+
+    <script>
+        const rssFeedUrl = "https://feeds.gamepix.com/v2/json?sid=R8149&pagination=12&page=1";
+
+        fetch(rssFeedUrl)
+            .then(response => response.json())
+            .then(data => {
+                const gameList = document.getElementById('game-list');
+                data.items.forEach(game => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `
+                        <strong>${game.title}</strong><br/>
+                        Kategori: ${game.category}<br/>
+                        <img src="${game.banner_image}" alt="${game.title}" width="200"/><br/>
+                        <a href="${game.url}" target="_blank">Mainkan Game</a>
+                    `;
+                    gameList.appendChild(li);
+                });
+            })
+            .catch(error => {
+                console.error('Error fetching RSS Feed:', error);
+            });
     </script>
 </body>
 </html>
