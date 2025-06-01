@@ -730,10 +730,13 @@
 
         // Weapon data
         const weapons = [
-            { id: 'ar15', name: 'AR-15 Style Rifle', damage: 20, price: 0, current: true, modelPath: 'https://raw.githubusercontent.com/fajrigans/assetgametembak/main/ImageToStl.com_buatkan_senjata_temba_0531124219_texture_fbx.fbx' },
-            { id: 'pistol', name: 'Pistol', damage: 15, price: 1500, current: false, modelPath: 'https://raw.githubusercontent.com/fajrigans/assetgametembak/main/ImageToStl.com_buatkan_senjata_temba_0531174819_texture_fbx.fbx' }
+            // Pistol sekarang adalah senjata default dengan harga 0 koin dan kerusakan 15
+            { id: 'pistol', name: 'Pistol', damage: 15, price: 0, current: true, modelPath: 'https://raw.githubusercontent.com/fajrigans/assetgametembak/main/ImageToStl.com_buatkan_senjata_temba_0531174819_texture_fbx.fbx' },
+            // AR-15 sekarang berharga 1500 koin dan memiliki kerusakan 20
+            { id: 'ar15', name: 'AR-15 Style Rifle', damage: 20, price: 1500, current: false, modelPath: 'https://raw.githubusercontent.com/fajrigans/assetgametembak/main/ImageToStl.com_buatkan_senjata_temba_0531124219_texture_fbx.fbx' }
         ];
-        let currentWeapon = weapons[0]; // Default weapon is AR-15
+        // Temukan senjata yang saat ini dipilih (awalnya pistol)
+        let currentWeapon = weapons.find(w => w.current); 
 
         const translations = {
             'id': {
@@ -1332,6 +1335,7 @@
                         bullets.splice(i, 1);
 
                         // Apply damage and update health bar
+                        // Kerusakan peluru kini disesuaikan dengan nilai BULLET_DAMAGE saat ini
                         enemy.mesh.userData.currentHealth -= (isZoomed ? (BULLET_DAMAGE * ZOOMED_BULLET_DAMAGE_MULTIPLIER) : BULLET_DAMAGE);
                         const healthRatio = enemy.mesh.userData.currentHealth / enemy.mesh.userData.maxHealth;
 
@@ -1581,8 +1585,9 @@
                 currentWeapon.current = false; // Deselect old weapon
                 weaponToBuy.current = true; // Select new weapon
                 currentWeapon = weaponToBuy;
-                BULLET_DAMAGE = currentWeapon.damage; // Update global damage
+                BULLET_DAMAGE = currentWeapon.damage; // Update global damage based on new weapon's damage
                 updateCoinsDisplay(); // Refresh weapon list display and preview
+                updateWeaponList(); // Re-render weapon list to reflect changes
                 loadInGameWeaponModel(currentWeapon.modelPath); // Load new in-game model
                 console.log(`Weapon ${weaponToBuy.name} bought!`);
             } else {
@@ -1713,12 +1718,14 @@
                         // Ensure materials are compatible with Phong (for lighting)
                         if (Array.isArray(child.material)) {
                             child.material.forEach(mat => {
-                                child.material = new THREE.MeshPhongMaterial({ color: mat.color || 0xAAAAAA });
-                                mat.needsUpdate = true;
+                                mat.needsUpdate = true; // Ensure material updates
+                                if (!mat.color) mat.color = new THREE.Color(0xAAAAAA); // Default color if none
+                                child.material = new THREE.MeshPhongMaterial({ color: mat.color });
                             });
                         } else {
-                            child.material = new THREE.MeshPhongMaterial({ color: child.material.color || 0xAAAAAA });
-                            child.material.needsUpdate = true;
+                            if (!child.material.color) child.material.color = new THREE.Color(0xAAAAAA); // Default color if none
+                            child.material = new THREE.MeshPhongMaterial({ color: child.material.color });
+                            child.material.needsUpdate = true; // Ensure material updates
                         }
                     }
                 });
@@ -2078,7 +2085,7 @@
             updateHealthShieldDisplay(); // Ensure health/shield bars are initialized
             updateSettingsDisplay(); // Ensure settings UI reflects initial values
 
-            // Set initial bullet damage based on default weapon
+            // Set initial bullet damage based on default weapon (pistol)
             BULLET_DAMAGE = currentWeapon.damage;
 
             // Start the animation loop, but game logic will only run when gameState is 'playing'
