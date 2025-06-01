@@ -20,11 +20,6 @@
     <meta name="keywords" content="FPS game, web game, three.js game, fire123, shooting game, game tembak-tembakan, game online gratis, 3D game, WebGL" />
     
     <!--
-      Penulis/Kredit (opsional)
-    -->
-    <meta name="author" content="Tim Pengembang Game Fire123" />
-
-    <!--
       Open Graph Meta Tags untuk Facebook, LinkedIn, WhatsApp, dll.
       Ini membuat tautan Anda terlihat bagus saat dibagikan.
     -->
@@ -49,7 +44,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-app-pub-YOUR_ADMOB_PUBLISHER_ID" crossorigin="anonymous"></script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-app-pub-2416145413528363" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/fflate@0.7.1/umd/index.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -508,14 +503,14 @@
             display: none; /* Hidden by default */
         }
 
-        /* Joystick Styles */
+        /* Joystick Styles - Hidden by default on large screens */
         .joystick-container {
-            display: none; /* Hidden by default for desktop */
+            display: none; /* Sembunyikan secara default untuk desktop */
             position: absolute;
             bottom: 1rem;
             left: 1rem;
             z-index: 50;
-            touch-action: none; /* Prevent browser gestures like scrolling */
+            touch-action: none; /* Mencegah gestur browser seperti scrolling */
         }
 
         .joystick-base {
@@ -538,19 +533,19 @@
             transition: transform 0.1s ease-out; /* Smooth return to center */
         }
 
-        /* Show joystick and shoot button on mobile */
+        /* Show joystick and shoot button ONLY on mobile (max-width: 767px) */
         @media (max-width: 767px) {
             .joystick-container {
-                display: block;
+                display: block; /* Tampilkan di mobile */
             }
-            .shoot-button { /* Adjust shoot button position for mobile */
+            .shoot-button { /* Sesuaikan posisi tombol tembak untuk mobile */
                 bottom: 1rem;
                 right: 1rem;
                 position: absolute;
-                display: block; /* Ensure it's displayed on mobile */
-                padding: 1rem 2rem; /* Make button larger for touch */
+                display: block; /* Pastikan ditampilkan di mobile */
+                padding: 1rem 2rem; /* Buat tombol lebih besar untuk sentuhan */
                 font-size: 1.5rem;
-                background-color: #ef4444; /* Red color for shoot button */
+                background-color: #ef4444; /* Warna merah untuk tombol tembak */
                 color: white;
                 border-radius: 12px;
                 box-shadow: 0 0 15px rgba(255,0,0,0.5);
@@ -609,9 +604,9 @@
         <div class="ad-container" style="margin-top: 2rem; width: 300px; height: 250px; background-color: rgba(255,255,255,0.1); display: flex; justify-content: center; align-items: center; color: #fff; border: 1px dashed #0ff;">
             <p>Iklan Anda Akan Muncul Di Sini</p>
             <ins class="adsbygoogle"
-                 style="display:block"
-                 data-ad-client="ca-app-pub-YOUR_ADMOB_PUBLISHER_ID"
-                 data-ad-slot="YOUR_ADSENSE_AD_SLOT_ID"
+                 style="display:block; min-width: 300px; min-height: 250px; width: 100%; height: 100%;"
+                 data-ad-client="ca-app-pub-2416145413528363"
+                 data-ad-slot="6152166725"
                  data-ad-format="auto"
                  data-full-width-responsive="true"></ins>
             </div>
@@ -717,8 +712,8 @@
         const langIdButton = document.getElementById('langIdButton');
         const langEnButton = document.getElementById('langEnButton');
 
-        // Get mobile controls (old, now hidden by CSS)
-        const shootButton = document.getElementById('shootButton'); // Still need this for the new button
+        // Get mobile controls (old, now hidden by CSS, but still referenced in JS for dynamic display)
+        const shootButton = document.getElementById('shootButton'); 
 
         // Get player HUD elements
         const healthBarFill = document.getElementById('healthBarFill');
@@ -1057,7 +1052,7 @@
             playerYawObject = new THREE.Object3D(); // Initialize playerYawObject here
             scene.add(playerYawObject); // Add to scene
 
-            // Player Capsule (invisible for player collision, child of playerYawObject)
+            // Player Capsule (invisible for player collision and position (child of playerYawObject)
             const playerCapsuleGeometry = new THREE.CylinderGeometry(PLAYER_RADIUS, PLAYER_RADIUS, PLAYER_HEIGHT_OFFSET * 2, 16);
             const playerCapsuleMaterial = DEBUG_COLLISIONS ? new THREE.MeshBasicMaterial({ color: 0x00FF00, wireframe: true, transparent: true, opacity: 0.5 }) : new THREE.MeshBasicMaterial({ visible: false });
             playerCapsule = new THREE.Mesh(playerCapsuleGeometry, playerCapsuleMaterial);
@@ -1413,11 +1408,16 @@
             hideAllScreens();
             playerHud.style.display = 'flex';
             menuToggleButton.style.display = 'block';
-            // Show mobile controls if on a mobile device
-            if (window.innerWidth < 768) { // Assuming 768px is the breakpoint for mobile
+            
+            // Tampilkan kontrol mobile (joystick dan tombol tembak) hanya jika lebar layar kurang dari 768px
+            if (window.innerWidth < 768) { 
                 document.querySelector('.joystick-container').style.display = 'block';
                 shootButton.style.display = 'block';
+                console.log("Mobile controls (joystick, shoot button) displayed.");
+            } else {
+                console.log("Desktop detected. Mobile controls remain hidden.");
             }
+
             Tone.start();
             requestPointerLock();
             console.log("New Game Started!");
@@ -1431,11 +1431,16 @@
             hideAllScreens();
             playerHud.style.display = 'flex';
             menuToggleButton.style.display = 'block';
-            // Show mobile controls if on a mobile device
-            if (window.innerWidth < 768) { // Assuming 768px is the breakpoint for mobile
+
+            // Tampilkan kontrol mobile (joystick dan tombol tembak) hanya jika lebar layar kurang dari 768px
+            if (window.innerWidth < 768) { 
                 document.querySelector('.joystick-container').style.display = 'block';
                 shootButton.style.display = 'block';
+                console.log("Mobile controls (joystick, shoot button) displayed.");
+            } else {
+                console.log("Desktop detected. Mobile controls remain hidden.");
             }
+
             requestPointerLock();
             // No need to call animate() here, it's already running.
             console.log("Game Resumed!");
@@ -1790,7 +1795,7 @@
             messageBox.style.display = 'block';
             playerHud.style.display = 'none'; // Hide HUD when message box is shown
             menuToggleButton.style.display = 'none'; // Hide menu button
-            // Hide mobile controls
+            // Sembunyikan kontrol mobile saat kotak pesan ditampilkan
             if (window.innerWidth < 768) {
                 document.querySelector('.joystick-container').style.display = 'none';
                 shootButton.style.display = 'none';
@@ -1848,11 +1853,10 @@
             messageBox.style.display = 'none'; // Always hide message box when changing screens
             playerHud.style.display = 'none'; // Hide HUD by default
             menuToggleButton.style.display = 'none'; // Hide menu button by default
-            // Hide mobile controls
-            if (window.innerWidth < 768) {
-                document.querySelector('.joystick-container').style.display = 'none';
-                shootButton.style.display = 'none';
-            }
+            // Sembunyikan kontrol mobile secara eksplisit
+            document.querySelector('.joystick-container').style.display = 'none';
+            shootButton.style.display = 'none';
+            console.log("All screens hidden, including mobile controls.");
         }
 
         // Global flag to track if AdSense has been loaded for the main menu slot
@@ -1860,7 +1864,7 @@
 
         function showMainMenu() {
             hideAllScreens();
-            mainMenuScreen.style.display = 'flex';
+            mainMenuScreen.style.display = 'flex'; // Ensure menu is visible first
             gameState = 'menu';
             if (document.pointerLockElement) {
                 document.exitPointerLock();
@@ -1876,13 +1880,36 @@
             }
             welcomeMessageText.textContent = translations[currentLanguage].welcomeMessage;
 
-            // Load AdSense when main menu is shown, but only once, with a slight delay
-            if (typeof adsbygoogle !== 'undefined' && !adLoaded) { // MODIFIED CONDITION
-                console.log("Attempting to load AdSense for main menu with delay..."); // DEBUG
-                setTimeout(() => { // ADDED setTimeout
-                    (adsbygoogle = window.adsbygoogle || []).push({});
-                    adLoaded = true; // Set flag to true after pushing
-                }, 0); // Small delay to allow layout to settle
+            // Load AdSense when main menu is shown, but only once.
+            if (typeof adsbygoogle !== 'undefined' && !adLoaded) {
+                const adContainer = mainMenuScreen.querySelector('.ad-container');
+                const insElement = adContainer.querySelector('ins.adsbygoogle'); // Get the ins element directly
+
+                // Use a more generous delay to ensure the container is rendered and has dimensions
+                setTimeout(() => {
+                    console.log("Inside setTimeout for ad loading.");
+                    console.log("mainMenuScreen offsetWidth:", mainMenuScreen.offsetWidth, "offsetHeight:", mainMenuScreen.offsetHeight);
+                    console.log("Ad container offsetWidth:", adContainer.offsetWidth, "offsetHeight:", adContainer.offsetHeight);
+                    console.log("Ins element offsetWidth:", insElement.offsetWidth, "offsetHeight:", insElement.offsetHeight);
+
+                    // Re-check adLoaded flag and container dimensions inside the timeout
+                    if (adContainer && adContainer.offsetWidth > 0 && adContainer.offsetHeight > 0 && !adLoaded) {
+                        console.log("Ad container is ready. Attempting to load AdSense for main menu...");
+                        (adsbygoogle = window.adsbygoogle || []).push({});
+                        adLoaded = true;
+                        console.log("AdSense push initiated.");
+                    } else {
+                        console.log("Ad container still not ready or ad already loaded, skipping AdSense push.");
+                        // Optional: if still not ready, could try another delayed attempt or log a warning
+                        if (adContainer.offsetWidth === 0 || adContainer.offsetHeight === 0) {
+                            console.warn("Ad container still has zero dimensions after 3 seconds. Ad might not load.");
+                        }
+                    }
+                }, 3000); // Increased to 3000ms (3 seconds)
+            } else if (adLoaded) {
+                console.log("AdSense already loaded for main menu, skipping push.");
+            } else {
+                console.log("adsbygoogle not defined or adLoaded is true, skipping AdSense push.");
             }
         }
 
@@ -2194,7 +2221,7 @@
                     gameState = 'playing';
                     playerHud.style.display = 'flex';
                     menuToggleButton.style.display = 'block';
-                    // Show mobile controls if on a mobile device
+                    // Tampilkan kontrol mobile jika lebar layar kurang dari 768px
                     if (window.innerWidth < 768) {
                         document.querySelector('.joystick-container').style.display = 'block';
                         shootButton.style.display = 'block';
