@@ -142,50 +142,9 @@
             transform: scale(1.05);
         }
 
-        /* Kontrol Mobile */
+        /* Kontrol Mobile Lama (Disembunyikan) */
         .mobile-controls {
-            display: flex;
-            justify-content: space-between;
-            width: 100%;
-            margin-top: 1rem;
-            gap: 0.5rem;
-            z-index: 10; /* Di atas kanvas */
-            position: absolute;
-            bottom: 1rem;
-            left: 1rem;
-            right: 1rem;
-            padding: 0 1rem;
-        }
-        .mobile-controls button {
-            flex: 1;
-            padding: 1rem;
-            background-color: #4a5568;
-            color: #e2e8f0;
-            border: none;
-            border-radius: 8px;
-            font-size: 1.5rem;
-            cursor: pointer;
-            transition: background-color 0.3s, transform 0.2s, box-shadow 0.3s;
-            box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
-        }
-        .mobile-controls button:active {
-            background-color: #0ff;
-            color: #000;
-            transform: scale(0.95);
-        }
-        .mobile-controls .left-right-buttons {
-            display: flex;
-            gap: 0.5rem;
-            flex: 2;
-        }
-        .mobile-controls .shoot-button {
-            flex: 1;
-        }
-
-        @media (min-width: 768px) {
-            .mobile-controls {
-                display: none; /* Sembunyikan di desktop */
-            }
+            display: none !important; /* Sembunyikan sepenuhnya */
         }
 
         /* Crosshair */
@@ -528,6 +487,67 @@
             width: 100%;
             max-width: 300px;
         }
+
+        /* Orientation Message */
+        .orientation-message {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            text-align: center;
+            z-index: 3000;
+            display: none; /* Hidden by default */
+        }
+
+        /* Joystick Styles */
+        .joystick-container {
+            display: none; /* Hidden by default for desktop */
+            position: absolute;
+            bottom: 1rem;
+            left: 1rem;
+            z-index: 50;
+            touch-action: none; /* Prevent browser gestures like scrolling */
+        }
+
+        .joystick-base {
+            width: 128px; /* Ukuran dasar joystick */
+            height: 128px;
+            border-radius: 50%;
+            background-color: rgba(74, 85, 104, 0.5); /* gray-700 with opacity */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        .joystick-knob {
+            width: 64px; /* Ukuran kenop joystick */
+            height: 64px;
+            border-radius: 50%;
+            background-color: rgba(66, 153, 225, 0.75); /* blue-500 with opacity */
+            position: absolute;
+            transition: transform 0.1s ease-out; /* Smooth return to center */
+        }
+
+        /* Show joystick on mobile */
+        @media (max-width: 767px) {
+            .joystick-container {
+                display: block;
+            }
+            .shoot-button { /* Adjust shoot button position for mobile */
+                bottom: 1rem;
+                right: 1rem;
+                position: absolute;
+            }
+        }
     </style>
 </head>
 <body> 
@@ -541,15 +561,12 @@
         <div class="crosshair"></div>
         <canvas id="gameCanvas3D"></canvas>
 
-        <div class="mobile-controls">
-            <div class="left-right-buttons">
-                <button id="leftButton" class="rounded-lg"><i class="fas fa-arrow-left"></i></button>
-                <button id="rightButton" class="rounded-lg"><i class="fas fa-arrow-right"></i></button>
+        <div class="joystick-container">
+            <div id="joystickBase" class="joystick-base">
+                <div id="joystickKnob" class="joystick-knob"></div>
             </div>
-            <button id="forwardButton" class="rounded-lg"><i class="fas fa-arrow-up"></i></button>
-            <button id="backwardButton" class="rounded-lg"><i class="fas fa-arrow-down"></i></button>
-            <button id="shootButton" class="shoot-button rounded-lg"><i class="fas fa-crosshairs"></i> Tembak</button>
         </div>
+        <button id="shootButton" class="shoot-button rounded-lg"><i class="fas fa-crosshairs"></i> Tembak</button>
 
         <div class="player-hud">
             <div class="health-bar">
@@ -584,10 +601,7 @@
                  data-ad-slot="YOUR_ADSENSE_AD_SLOT_ID"
                  data-ad-format="auto"
                  data-full-width-responsive="true"></ins>
-            <script>
-                 (adsbygoogle = window.adsbygoogle || []).push({});
-            </script>
-        </div>
+            </div>
         </div>
 
     <div id="weaponSelectScreen" class="menu-screen" style="display: none;">
@@ -642,6 +656,11 @@
         <button id="backToMainMenuFromSettings" class="mt-8">Kembali ke Menu Utama</button>
     </div>
 
+    <div id="orientationMessage" class="orientation-message">
+        <p>Untuk pengalaman bermain terbaik, harap putar perangkat Anda ke mode lanskap.</p>
+        <p>For the best experience, please rotate your device to landscape mode.</p>
+    </div>
+
     <script>
         // Get info elements
         const coinsDisplay = document.getElementById('coins'); // Changed from score
@@ -685,11 +704,11 @@
         const langIdButton = document.getElementById('langIdButton');
         const langEnButton = document.getElementById('langEnButton');
 
-        // Get mobile controls
-        const leftButton = document.getElementById('leftButton');
-        const rightButton = document.getElementById('rightButton');
-        const forwardButton = document.getElementById('forwardButton');
-        const backwardButton = document.getElementById('backwardButton');
+        // Get mobile controls (old, now hidden by CSS)
+        // const leftButton = document.getElementById('leftButton');
+        // const rightButton = document.getElementById('rightButton');
+        // const forwardButton = document.getElementById('forwardButton');
+        // const backwardButton = document.getElementById('backwardButton');
         const shootButton = document.getElementById('shootButton');
 
         // Get player HUD elements
@@ -756,12 +775,14 @@
         const ENEMY_HEAD_RADIUS = 0.2;
         const ENEMY_ARM_LENGTH = 0.5;
         const ENEMY_LEG_LENGTH = 0.5;
-        const ENEMY_SPEED_MIN = 0.5; // Speed units per second
-        const ENEMY_SPEED_MAX = 1.5; // Speed units per second
+        const ENEMY_SPEED_MIN = 1.0; // Speed units per second (Increased for faster AI)
+        const ENEMY_SPEED_MAX = 3.0; // Speed units per second (Increased for faster AI)
         const ENEMY_COLOR = 0xFF0000; // Red
         const ENEMY_SPAWN_INTERVAL = 1500; // milliseconds (diperpanjang untuk debugging)
         let lastEnemySpawnTime = 0; // Akan diinisialisasi dengan Date.now() saat game dimulai
         const ENEMY_DAMAGE_TO_PLAYER = 20; // Damage an enemy deals to player on collision
+        const ENEMY_AVOIDANCE_RADIUS = 2.0; // How close enemy needs to be to react to an obstacle
+        const ENEMY_AVOIDANCE_FORCE_MULTIPLIER = 10.0; // How strong the push away is
 
         // Game world dimensions (in Three.js units)
         const WORLD_SCALE_FACTOR = 3.5; // New scale factor for the map
@@ -884,6 +905,7 @@
                 'failedToLoadModel': 'Gagal memuat model. Periksa konsol untuk detail.', // New
                 'weaponBought': 'Senjata berhasil dibeli!', // New
                 'notEnoughCoins': 'Koin tidak cukup!', // New
+                'orientationMessage': 'Untuk pengalaman bermain terbaik, harap putar perangkat Anda ke mode lanskap.',
                 'weaponNames': { // New nested object for weapon names
                     'ar15': 'Senapan Gaya AR-15',
                     'pistol': 'Pistol'
@@ -921,6 +943,7 @@
                 'failedToLoadModel': 'Failed to load model. Check console for details.', // New
                 'weaponBought': 'Weapon successfully purchased!', // New
                 'notEnoughCoins': 'Not enough coins!', // New
+                'orientationMessage': 'For the best experience, please rotate your device to landscape mode.',
                 'weaponNames': { // New nested object for weapon names
                     'ar15': 'AR-15 Style Rifle',
                     'pistol': 'Pistol'
@@ -944,8 +967,6 @@
                     if (Tone.context.state === 'suspended') {
                         Tone.context.resume().then(() => {
                             console.log("AudioContext resumed after error.");
-                        }).catch(resumeErr => {
-                            console.error("Failed to resume AudioContext:", resumeErr);
                         });
                     }
                 }
@@ -955,8 +976,6 @@
                 if (Tone.context.state !== 'running') {
                     Tone.start().then(() => {
                         console.log("AudioContext started/resumed from playSound fallback.");
-                    }).catch(startErr => {
-                        console.error("Failed to start/resume AudioContext from playSound fallback:", startErr);
                     });
                 }
             }
@@ -1115,6 +1134,8 @@
             obstacleMesh.castShadow = true; // Rintangan memancarkan bayangan
             obstacleMesh.receiveShadow = true; // Rintangan menerima bayangan
             scene.add(obstacleMesh);
+            // Store bounding box for obstacles
+            obstacleMesh.userData.boundingBox = new THREE.Box3().setFromObject(obstacleMesh);
             obstacles.push(obstacleMesh);
 
             if (DEBUG_COLLISIONS) {
@@ -1133,6 +1154,8 @@
             cylinderMesh.castShadow = true; // Silinder memancarkan bayangan
             cylinderMesh.receiveShadow = true; // Silinder menerima bayangan
             scene.add(cylinderMesh);
+            // Store bounding box for obstacles
+            cylinderMesh.userData.boundingBox = new THREE.Box3().setFromObject(cylinderMesh);
             obstacles.push(cylinderMesh);
 
             if (DEBUG_COLLISIONS) {
@@ -1236,6 +1259,8 @@
             // --- PERUBAHAN DI SINI: Kesehatan musuh ditingkatkan menjadi 60 ---
             enemyGroup.userData.maxHealth = 60; 
             enemyGroup.userData.currentHealth = 60; 
+            // Store bounding box for enemy
+            enemyGroup.userData.boundingBox = new THREE.Box3();
 
             return enemyGroup;
         }
@@ -1379,6 +1404,11 @@
             hideAllScreens();
             playerHud.style.display = 'flex';
             menuToggleButton.style.display = 'block';
+            // Show mobile controls if on a mobile device
+            if (window.innerWidth < 768) { // Assuming 768px is the breakpoint for mobile
+                document.querySelector('.joystick-container').style.display = 'block';
+                shootButton.style.display = 'block';
+            }
             Tone.start();
             requestPointerLock();
             console.log("New Game Started!");
@@ -1392,6 +1422,11 @@
             hideAllScreens();
             playerHud.style.display = 'flex';
             menuToggleButton.style.display = 'block';
+            // Show mobile controls if on a mobile device
+            if (window.innerWidth < 768) { // Assuming 768px is the breakpoint for mobile
+                document.querySelector('.joystick-container').style.display = 'block';
+                shootButton.style.display = 'block';
+            }
             requestPointerLock();
             // No need to call animate() here, it's already running.
             console.log("Game Resumed!");
@@ -1438,7 +1473,7 @@
             playerYawObject.position.x += movementVector.x;
             const playerBoxAfterXMove = new THREE.Box3().setFromObject(playerCapsule);
             for (const obstacle of obstacles) {
-                const obstacleBox = new THREE.Box3().setFromObject(obstacle);
+                const obstacleBox = obstacle.userData.boundingBox; // Use pre-calculated bounding box
                 if (playerBoxAfterXMove.intersectsBox(obstacleBox)) {
                     playerYawObject.position.x = originalX;
                     break;
@@ -1448,7 +1483,7 @@
             playerYawObject.position.z += movementVector.z;
             const playerBoxAfterZMove = new THREE.Box3().setFromObject(playerCapsule);
             for (const obstacle of obstacles) {
-                const obstacleBox = new THREE.Box3().setFromObject(obstacle);
+                const obstacleBox = obstacle.userData.boundingBox; // Use pre-calculated bounding box
                 if (playerBoxAfterZMove.intersectsBox(obstacleBox)) {
                     playerYawObject.position.z = originalZ;
                     break;
@@ -1511,9 +1546,52 @@
 
             for (let i = enemies.length - 1; i >= 0; i--) {
                 const enemy = enemies[i];
-                // Move enemy towards player
+                // Update enemy's bounding box to its current position
+                enemy.mesh.userData.boundingBox.setFromObject(enemy.mesh);
+
+                // Calculate direction to player
                 const directionToPlayer = new THREE.Vector3().subVectors(playerYawObject.position, enemy.mesh.position).normalize();
-                enemy.mesh.position.add(directionToPlayer.multiplyScalar(enemy.speed * deltaTime));
+                let finalMovementVector = directionToPlayer.clone();
+
+                // Obstacle avoidance logic
+                for (const obstacle of obstacles) {
+                    const obstacleBox = obstacle.userData.boundingBox;
+                    const enemyBox = enemy.mesh.userData.boundingBox;
+
+                    // Create a temporary bounding box for the enemy's predicted future position
+                    // Predict slightly ahead to react before actual collision
+                    const predictedEnemyBox = enemyBox.clone();
+                    predictedEnemyBox.translate(finalMovementVector.clone().multiplyScalar(enemy.speed * deltaTime * 2)); // Predict 2 frames ahead
+
+                    if (predictedEnemyBox.intersectsBox(obstacleBox)) {
+                        const overlapVector = new THREE.Vector3();
+                        // Calculate vector from obstacle center to enemy center
+                        enemyBox.getCenter(overlapVector).sub(obstacleBox.getCenter(new THREE.Vector3()));
+                        overlapVector.y = 0; // Only consider horizontal avoidance
+
+                        // If centers are identical or very close, provide a random small nudge to avoid division by zero
+                        if (overlapVector.lengthSq() < 0.001) { // Use a small epsilon for comparison
+                            overlapVector.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
+                        } else {
+                            overlapVector.normalize();
+                        }
+                        
+                        // Add an avoidance force, stronger when closer to the obstacle
+                        const distance = enemy.mesh.position.distanceTo(obstacle.position);
+                        // Using a simple inverse distance for force, capped to avoid extreme values
+                        const forceMagnitude = ENEMY_AVOIDANCE_FORCE_MULTIPLIER / (distance + 0.1); // Add 0.1 to prevent division by zero
+                        finalMovementVector.add(overlapVector.multiplyScalar(forceMagnitude));
+                        // No break here, allow multiple avoidance forces to combine
+                    }
+                }
+
+                // Re-normalize the final movement vector after adding avoidance forces
+                if (finalMovementVector.lengthSq() > 0) {
+                    finalMovementVector.normalize();
+                }
+                
+                // Apply movement
+                enemy.mesh.position.add(finalMovementVector.multiplyScalar(enemy.speed * deltaTime));
 
                 // Make enemy look at player (only yaw)
                 enemy.mesh.lookAt(playerYawObject.position.x, enemy.mesh.position.y, playerYawObject.position.z);
@@ -1527,7 +1605,7 @@
                 }
 
                 const playerCollisionBox = new THREE.Box3().setFromObject(playerCapsule);
-                const enemyBox = new THREE.Box3().setFromObject(enemy.mesh);
+                const enemyBox = enemy.mesh.userData.boundingBox; // Use updated bounding box
 
                 if (playerCollisionBox.intersectsBox(enemyBox)) {
                     // Apply damage to player's shield first, then health
@@ -1572,7 +1650,7 @@
 
                 for (let j = enemies.length - 1; j >= 0; j--) {
                     const enemy = enemies[j];
-                    const enemyBox = new THREE.Box3().setFromObject(enemy.mesh);
+                    const enemyBox = enemy.mesh.userData.boundingBox; // Use pre-calculated bounding box
 
                     if (bulletBox.intersectsBox(enemyBox)) {
                         playSound(enemyExplodeSynth, "C2", "8n");
@@ -1703,6 +1781,11 @@
             messageBox.style.display = 'block';
             playerHud.style.display = 'none'; // Hide HUD when message box is shown
             menuToggleButton.style.display = 'none'; // Hide menu button
+            // Hide mobile controls
+            if (window.innerWidth < 768) {
+                document.querySelector('.joystick-container').style.display = 'none';
+                shootButton.style.display = 'none';
+            }
         }
 
         function hideMessageBox() {
@@ -1756,7 +1839,15 @@
             messageBox.style.display = 'none'; // Always hide message box when changing screens
             playerHud.style.display = 'none'; // Hide HUD by default
             menuToggleButton.style.display = 'none'; // Hide menu button by default
+            // Hide mobile controls
+            if (window.innerWidth < 768) {
+                document.querySelector('.joystick-container').style.display = 'none';
+                shootButton.style.display = 'none';
+            }
         }
+
+        // Global flag to track if AdSense has been loaded for the main menu slot
+        let adLoaded = false; // NEW
 
         function showMainMenu() {
             hideAllScreens();
@@ -1775,6 +1866,15 @@
                 restartGameButton.style.display = 'none'; // Hide restart button if not paused game
             }
             welcomeMessageText.textContent = translations[currentLanguage].welcomeMessage;
+
+            // Load AdSense when main menu is shown, but only once, with a slight delay
+            if (typeof adsbygoogle !== 'undefined' && !adLoaded) { // MODIFIED CONDITION
+                console.log("Attempting to load AdSense for main menu with delay..."); // DEBUG
+                setTimeout(() => { // ADDED setTimeout
+                    (adsbygoogle = window.adsbygoogle || []).push({});
+                    adLoaded = true; // Set flag to true after pushing
+                }, 0); // Small delay to allow layout to settle
+            }
         }
 
         function showWeaponSelection() {
@@ -2063,13 +2163,16 @@
                 console.error("Cannot request pointer lock: canvas3D element not found.");
                 return;
             }
-            canvas3D.requestPointerLock = canvas3D.requestPointerLock || canvas3D.mozRequestPointerLock || canvas3D.webkitRequestPointerLock;
-            if (canvas3D.requestPointerLock) {
-                canvas3D.requestPointerLock().then(() => {
-                    console.log("Pointer lock successful.");
-                }).catch((e) => {
-                    console.error("Pointer lock failed or exited:", e);
-                });
+            // Only request pointer lock if it's not already active
+            if (document.pointerLockElement !== canvas3D) {
+                canvas3D.requestPointerLock = canvas3D.requestPointerLock || canvas3D.mozRequestPointerLock || canvas3D.webkitRequestPointerLock;
+                if (canvas3D.requestPointerLock) {
+                    canvas3D.requestPointerLock().then(() => {
+                        console.log("Pointer lock successful.");
+                    }).catch((e) => {
+                        console.error("Pointer lock failed or exited:", e);
+                    });
+                }
             }
         }
 
@@ -2082,6 +2185,11 @@
                     gameState = 'playing';
                     playerHud.style.display = 'flex';
                     menuToggleButton.style.display = 'block';
+                    // Show mobile controls if on a mobile device
+                    if (window.innerWidth < 768) {
+                        document.querySelector('.joystick-container').style.display = 'block';
+                        shootButton.style.display = 'block';
+                    }
                 }
             } else {
                 console.log('Pointer unlocked');
@@ -2178,8 +2286,9 @@
         // Prevent context menu on right-click
         canvas3D.addEventListener('contextmenu', (e) => e.preventDefault());
 
-        // --- Mobile Touch Drag for Rotation ---
+        // --- Mobile Touch Drag for Camera Rotation (on canvas) ---
         canvas3D.addEventListener('touchstart', (e) => {
+            // Only activate touch drag for camera if not interacting with joystick/buttons
             if (e.touches.length === 1 && gameState === 'playing' && e.target === canvas3D) {
                 isTouchDragging = true;
                 previousTouchX = e.touches[0].clientX;
@@ -2215,25 +2324,120 @@
             isTouchDragging = false; // Also reset preview dragging on touch cancel
         });
 
+        // --- Joystick Logic (NEW) ---
+        const joystickBase = document.getElementById('joystickBase');
+        const joystickKnob = document.getElementById('joystickKnob');
 
-        // --- Mobile Controls for Movement (Buttons) ---
-        // Changed passive: true to passive: false and added e.preventDefault()
-        leftButton.addEventListener('touchstart', (e) => { e.preventDefault(); touchMoveLeft = true; }, { passive: false });
-        leftButton.addEventListener('touchend', () => { touchMoveLeft = false; });
-        leftButton.addEventListener('touchcancel', () => { touchMoveLeft = false; });
+        let joystick = {
+            active: false,
+            startX: 0,
+            startY: 0,
+            currentX: 0,
+            currentY: 0,
+            radius: joystickBase ? joystickBase.clientWidth / 2 : 64, // Half of base width
+            knobRadius: joystickKnob ? joystickKnob.clientWidth / 2 : 32, // Half of knob width
+            maxDistance: joystickBase ? (joystickBase.clientWidth / 2) - (joystickKnob.clientWidth / 2) : 32 // Max distance knob can move
+        };
 
-        rightButton.addEventListener('touchstart', (e) => { e.preventDefault(); touchMoveRight = true; }, { passive: false });
-        rightButton.addEventListener('touchend', () => { touchMoveRight = false; });
-        rightButton.addEventListener('touchcancel', () => { touchMoveRight = false; });
+        // Update joystick position and map to movement flags
+        function updateJoystick(e) {
+            if (!joystick.active) return;
 
-        forwardButton.addEventListener('touchstart', (e) => { e.preventDefault(); touchMoveForward = true; }, { passive: false });
-        forwardButton.addEventListener('touchend', () => { touchMoveForward = false; });
-        forwardButton.addEventListener('touchcancel', () => { touchMoveForward = false; });
+            const touch = e.touches[0];
+            joystick.currentX = touch.clientX;
+            joystick.currentY = touch.clientY;
 
-        backwardButton.addEventListener('touchstart', (e) => { e.preventDefault(); touchMoveBackward = true; }, { passive: false });
-        backwardButton.addEventListener('touchend', () => { touchMoveBackward = false; });
-        backwardButton.addEventListener('touchcancel', () => { touchMoveBackward = false; });
+            let deltaX = joystick.currentX - joystick.startX;
+            let deltaY = joystick.currentY - joystick.startY;
 
+            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+            if (distance > joystick.maxDistance) {
+                const angle = Math.atan2(deltaY, deltaX);
+                deltaX = joystick.maxDistance * Math.cos(angle);
+                deltaY = joystick.maxDistance * Math.sin(angle);
+            }
+
+            joystickKnob.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+
+            // Map joystick position to movement flags
+            touchMoveForward = false;
+            touchMoveBackward = false;
+            touchMoveLeft = false;
+            touchMoveRight = false;
+
+            const deadZone = joystick.maxDistance * 0.1; // 10% dead zone
+            if (distance > deadZone) {
+                const angle = Math.atan2(deltaY, deltaX); // Angle in radians
+
+                // Determine direction based on angle (8 directions)
+                if (angle > -Math.PI / 8 && angle <= Math.PI / 8) { // Right
+                    touchMoveRight = true;
+                } else if (angle > Math.PI / 8 && angle <= 3 * Math.PI / 8) { // Down-Right
+                    touchMoveBackward = true;
+                    touchMoveRight = true;
+                } else if (angle > 3 * Math.PI / 8 && angle <= 5 * Math.PI / 8) { // Down
+                    touchMoveBackward = true;
+                } else if (angle > 5 * Math.PI / 8 && angle <= 7 * Math.PI / 8) { // Down-Left
+                    touchMoveBackward = true;
+                    touchMoveLeft = true;
+                } else if (angle > 7 * Math.PI / 8 || angle <= -7 * Math.PI / 8) { // Left
+                    touchMoveLeft = true;
+                } else if (angle > -7 * Math.PI / 8 && angle <= -5 * Math.PI / 8) { // Up-Left
+                    touchMoveForward = true;
+                    touchMoveLeft = true;
+                } else if (angle > -5 * Math.PI / 8 && angle <= -3 * Math.PI / 8) { // Up
+                    touchMoveForward = true;
+                } else if (angle > -3 * Math.PI / 8 && angle <= -Math.PI / 8) { // Up-Right
+                    touchMoveForward = true;
+                    touchMoveRight = true;
+                }
+            }
+        }
+
+        if (joystickBase) { // Ensure joystick elements exist before adding listeners
+            joystickBase.addEventListener('touchstart', (e) => {
+                if (gameState === 'playing' && e.touches.length === 1) {
+                    e.preventDefault(); // Prevent scrolling
+                    joystick.active = true;
+                    // Get the initial touch position relative to the joystick base
+                    const rect = joystickBase.getBoundingClientRect();
+                    joystick.startX = rect.left + rect.width / 2;
+                    joystick.startY = rect.top + rect.height / 2;
+                    joystickKnob.style.transition = 'none'; // Disable transition during drag
+                    updateJoystick(e);
+                }
+            }, { passive: false });
+
+            joystickBase.addEventListener('touchmove', (e) => {
+                if (gameState === 'playing' && joystick.active) {
+                    e.preventDefault(); // Prevent scrolling
+                    updateJoystick(e);
+                }
+            }, { passive: false });
+
+            joystickBase.addEventListener('touchend', () => {
+                joystick.active = false;
+                joystickKnob.style.transition = 'transform 0.1s ease-out'; // Re-enable transition
+                joystickKnob.style.transform = 'translate(0, 0)'; // Reset knob position
+                // Reset movement flags
+                touchMoveForward = false;
+                touchMoveBackward = false;
+                touchMoveLeft = false;
+                touchMoveRight = false;
+            });
+            joystickBase.addEventListener('touchcancel', () => {
+                joystick.active = false;
+                joystickKnob.style.transition = 'transform 0.1s ease-out';
+                joystickKnob.style.transform = 'translate(0, 0)';
+                touchMoveForward = false;
+                touchMoveBackward = false;
+                touchMoveLeft = false;
+                touchMoveRight = false;
+            });
+        }
+
+        // --- Mobile Shoot Button ---
         shootButton.addEventListener('touchstart', (e) => {
             e.preventDefault();
             if (gameState === 'playing') {
@@ -2296,9 +2500,12 @@
         // Function to update UI elements on weapon select screen based on current language
         function updateWeaponPreviewUI() {
             const t = translations[currentLanguage];
+
+            // Update text content for weapon select screen
             weaponSelectTitle.textContent = t.weaponSelectTitle;
             backToMainMenuFromWeaponButton.textContent = t.backToMainMenu;
             loadingOverlay.querySelector('p').textContent = t.loadingModel;
+            
             // Update buy button text based on current weapon state
             const currentPreviewWeaponData = allWeaponsData[currentWeaponIndex];
             updateBuyButtonState(currentPreviewWeaponData);
@@ -2390,6 +2597,35 @@
 
             // Update settings display to reflect language button selection
             updateSettingsDisplay();
+
+            // Update orientation message
+            document.getElementById('orientationMessage').querySelector('p:first-child').textContent = t.orientationMessage;
+        }
+
+        // --- Orientation Check ---
+        function checkOrientation() {
+            const orientationMessage = document.getElementById('orientationMessage');
+            // Check if it's a mobile device and in portrait mode
+            if (window.innerWidth < window.innerHeight && /Mobi|Android/i.test(navigator.userAgent)) {
+                orientationMessage.style.display = 'flex';
+                // Pause game if it's currently playing
+                if (gameState === 'playing') {
+                    if (document.pointerLockElement) {
+                        document.exitPointerLock();
+                    }
+                    // gameState will be set to 'menu' by pointerlockchange listener or manually if no pointer lock
+                    showMainMenu(); // Ensure menu is shown
+                    mainMenuPrimaryButton.textContent = translations[currentLanguage].continueGame; // Show continue button
+                    restartGameButton.style.display = 'block'; // Show restart button
+                    welcomeMessageText.textContent = translations[currentLanguage].gamePaused; // Update welcome message
+                }
+            } else {
+                orientationMessage.style.display = 'none';
+                // If game was paused due to orientation, and now it's landscape, reset welcome message
+                if (gameState === 'menu' && gameStartedAtLeastOnce && !gameOver) {
+                    welcomeMessageText.textContent = translations[currentLanguage].welcomeMessage;
+                }
+            }
         }
 
 
@@ -2415,6 +2651,12 @@
             updateLanguageDisplay(); // Initial display updates based on default language
             updateHealthShieldDisplay(); // Ensure health/shield bars are initialized
             updateSettingsDisplay(); // Ensure settings UI reflects initial values
+
+            // Check initial orientation and set up listeners
+            checkOrientation();
+            window.addEventListener('orientationchange', checkOrientation);
+            window.addEventListener('resize', checkOrientation); // Also check on resize as orientationchange might not fire on all devices
+
 
             // Start the animation loop, but game logic will only run when gameState is 'playing'
             animate();
