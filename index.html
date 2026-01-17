@@ -572,6 +572,15 @@
             }
         }
     </style>
+  <script async
+       data-ad-frequency-hint="30s"
+       src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2416145413528363" # your publisher ID
+       crossorigin="anonymous">
+   </script>
+   <script>
+      window.adsbygoogle = window.adsbygoogle || [];
+      var adBreak = adConfig = function(o) {adsbygoogle.push(o);}
+   </script>
 </head>
 <body> 
     <div class="game-container">
@@ -1418,6 +1427,10 @@
             gameStartedAtLeastOnce = true;
 
             hideAllScreens(); // Hide all menus first
+            adBreak({
+            type: 'next',  // ad shows at start of next level
+            name: 'restart-game',
+      });
 
             // Show mobile controls only if screen width is mobile
             if (window.innerWidth < 768) { 
